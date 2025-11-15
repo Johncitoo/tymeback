@@ -1,9 +1,18 @@
-import { IsUUID, IsOptional, IsInt, Min, IsDateString } from 'class-validator';
+import { IsUUID, IsOptional, IsInt, Min, IsDateString, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class QueryAttendanceDto {
-  @IsUUID() gymId!: string;
-  @IsOptional() @IsUUID() clientId?: string;
+  @IsOptional()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID'
+  })
+  gymId?: string;
+  
+  @IsOptional()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'clientId must be a valid UUID format',
+  })
+  clientId?: string;
 
   @IsOptional() @IsDateString() from?: string;
   @IsOptional() @IsDateString() to?: string;

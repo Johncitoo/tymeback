@@ -5,7 +5,7 @@ import { UpdateMachineDto } from './dto/update-machine.dto';
 import { QueryMachinesDto } from './dto/query-machines.dto';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 
-@Controller('api/machines')
+@Controller('machines')
 export class MachinesController {
   constructor(private readonly service: MachinesService) {}
 

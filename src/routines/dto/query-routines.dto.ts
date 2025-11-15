@@ -1,8 +1,10 @@
 import { Type } from 'class-transformer';
-import { IsBooleanString, IsOptional, IsString, IsUUID, IsInt, Min } from 'class-validator';
+import { IsBooleanString, IsOptional, IsString, Matches, IsInt, Min } from 'class-validator';
 
 export class QueryRoutinesDto {
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID format',
+  })
   gymId!: string;
 
   @IsOptional()

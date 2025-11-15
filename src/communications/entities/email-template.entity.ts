@@ -1,16 +1,8 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index,
+  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
 } from 'typeorm';
 
-export enum TemplatePurposeEnum {
-  GENERAL = 'GENERAL',
-  REMINDER_EXPIRY = 'REMINDER_EXPIRY',
-  WELCOME = 'WELCOME',
-}
-
 @Entity({ name: 'email_templates' })
-@Index(['gymId', 'isActive'])
-@Index(['gymId', 'purpose'])
 export class EmailTemplate {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -24,11 +16,14 @@ export class EmailTemplate {
   @Column('text')
   subject!: string;
 
-  @Column('text')
-  html!: string; // variables {nombre} {plan} {fecha_vencimiento}
+  @Column('text', { name: 'body_html' })
+  html!: string;
 
-  @Column({ type: 'enum', enum: TemplatePurposeEnum, enumName: 'template_purpose_enum', default: TemplatePurposeEnum.GENERAL })
-  purpose!: TemplatePurposeEnum;
+  @Column('text', { name: 'body_text', nullable: true })
+  bodyText?: string;
+
+  @Column('text', { array: true, default: '{}' })
+  variables!: string[];
 
   @Column('boolean', { name: 'is_active', default: true })
   isActive!: boolean;

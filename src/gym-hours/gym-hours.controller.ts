@@ -12,7 +12,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtUser } from '../auth/current-user.decorator';
 import { RoleEnum } from '../users/entities/user.entity';
 
-@Controller('api/gym-hours')
+@Controller('gym-hours')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class GymHoursController {
   constructor(private readonly service: GymHoursService) {}

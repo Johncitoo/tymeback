@@ -3,12 +3,9 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
   DeleteDateColumn,
-  OneToMany,
   Index,
 } from 'typeorm';
-import { PaymentItem } from './payment-item.entity';
 
 export enum PaymentMethodEnum {
   CASH = 'CASH',
@@ -27,52 +24,31 @@ export class Payment {
   @Column('uuid', { name: 'gym_id' })
   gymId!: string;
 
-  @Column('uuid', { name: 'client_id' })
-  clientId!: string;
-
-  // El plan elegido en este pago (UI actual asume un plan por pago)
-  @Column('uuid', { name: 'plan_id' })
-  planId!: string;
-
-  @Column('enum', { enum: PaymentMethodEnum, default: PaymentMethodEnum.CASH, name: 'method' })
-  method!: PaymentMethodEnum;
+  @Column('int', { name: 'total_amount_clp' })
+  totalAmountClp!: number;
 
   @Column('timestamptz', { name: 'paid_at' })
   paidAt!: Date;
 
-  @Column('int', { name: 'total_amount_clp' })
-  totalAmountClp!: number;
+  @Column({
+    type: 'enum',
+    enum: PaymentMethodEnum,
+    enumName: 'payment_method_enum',
+    default: PaymentMethodEnum.CASH,
+  })
+  method!: PaymentMethodEnum;
 
-  @Column('int', { name: 'net_amount_clp' })
-  netAmountClp!: number;
-
-  @Column('int', { name: 'vat_amount_clp' })
-  vatAmountClp!: number;
-
-  // audit: quién creó el pago (ADMIN)
-  @Column('uuid', { name: 'created_by_user_id' })
-  createdByUserId!: string;
-
-  // backdating: si el paidAt fue seteado en el pasado, motivo obligatorio
-  @Column('text', { name: 'backdating_reason', nullable: true })
-  backdatingReason!: string | null;
-
-  // comprobante opcional (files.id)
-  @Column('uuid', { name: 'receipt_file_id', nullable: true })
-  receiptFileId!: string | null;
-
-  // notas internas
   @Column('text', { nullable: true })
-  note!: string | null;
+  notes!: string | null;
 
-  @OneToMany(() => PaymentItem, (it) => it.payment, { cascade: ['insert'], eager: true })
-  items!: PaymentItem[];
+  @Column('text', { name: 'receipt_url', nullable: true })
+  receiptUrl!: string | null;
+
+  @Column('uuid', { name: 'processed_by', nullable: true })
+  processedBy!: string | null;
 
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;
-
-  @UpdateDateColumn({ type: 'timestamptz', name: 'updated_at' })
-  updatedAt!: Date;
 
   @DeleteDateColumn({ type: 'timestamptz', name: 'deleted_at', nullable: true })
   deletedAt!: Date | null;

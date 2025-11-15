@@ -1,11 +1,11 @@
 // src/memberships/dto/update-membership.dto.ts
 import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
-import { MembershipStatus } from '../entities/membership.entity';
+import { MembershipStatusEnum } from '../entities/membership.entity';
 
 export class UpdateMembershipDto {
   @IsOptional()
-  @IsEnum(MembershipStatus)
-  status?: MembershipStatus;
+  @IsEnum(MembershipStatusEnum)
+  status?: MembershipStatusEnum;
 
   // Permite ajustar fechas por casos administrativos (evitar solapes en backend)
   @IsOptional()

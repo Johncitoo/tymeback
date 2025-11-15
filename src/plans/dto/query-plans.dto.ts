@@ -1,9 +1,11 @@
 // src/plans/dto/query-plans.dto.ts
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 
 export class QueryPlansDto {
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID format'
+  })
   gymId!: string;
 
   @IsOptional()

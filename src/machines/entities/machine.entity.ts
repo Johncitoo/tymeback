@@ -39,11 +39,8 @@ export class Machine {
   @Column('text')
   name!: string;
 
-  @Column('enum', { enum: MachineTypeEnum, name: 'type', default: MachineTypeEnum.STRENGTH })
+  @Column('enum', { name: 'machine_type', enum: MachineTypeEnum, default: MachineTypeEnum.STRENGTH })
   type!: MachineTypeEnum;
-
-  @Column('enum', { enum: MuscleGroupEnum, name: 'muscle_group', default: MuscleGroupEnum.OTHER })
-  muscleGroup!: MuscleGroupEnum;
 
   // Campos informativos
   @Column('text', { nullable: true })
@@ -59,28 +56,28 @@ export class Machine {
   @Column('text', { name: 'image_url', nullable: true })
   imageUrl!: string | null;
 
-  @Column('uuid', { name: 'image_file_id', nullable: true })
-  imageFileId!: string | null;
-
   // Estado
-  @Column('boolean', { name: 'is_active', default: true })
-  isActive!: boolean;
-
-  @Column('boolean', { name: 'in_service', default: true })
-  inService!: boolean;
+  @Column('boolean', { name: 'is_operational', default: true })
+  isOperational!: boolean;
 
   // Extras opcionales
   @Column('text', { name: 'serial_number', nullable: true })
   serialNumber!: string | null;
 
   @Column('date', { name: 'purchase_date', nullable: true })
-  purchaseDate!: string | null; // ISO yyyy-mm-dd
+  purchaseDate!: string | null;
 
-  @Column('text', { name: 'warranty_info', nullable: true })
-  warrantyInfo!: string | null;
+  @Column('integer', { name: 'warranty_months', nullable: true })
+  warrantyMonths!: number | null;
+
+  @Column('date', { name: 'last_maintenance', nullable: true })
+  lastMaintenance!: string | null;
 
   @Column('text', { name: 'location', nullable: true })
   location!: string | null;
+
+  @Column('text', { name: 'usage_notes', nullable: true })
+  usageNotes!: string | null;
 
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;

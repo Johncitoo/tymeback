@@ -2,16 +2,17 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class AddExerciseDto {
-  @IsUUID()
-  gymId!: string;
+  @IsOptional()
+  @IsUUID('all')
+  gymId?: string;
 
-  @IsUUID()
+  @IsUUID('all')
   routineId!: string;
 
-  @IsUUID()
+  @IsUUID('all')
   dayId!: string;
 
-  @IsUUID()
+  @IsUUID('all')
   exerciseId!: string;
 
   @IsOptional()

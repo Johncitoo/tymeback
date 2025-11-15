@@ -4,7 +4,7 @@ import { CreateExerciseDto } from './dto/create-exercise.dto';
 import { UpdateExerciseDto } from './dto/update-exercise.dto';
 import { QueryExercisesDto } from './dto/query-exercises.dto';
 
-@Controller('api/exercises')
+@Controller('exercises')
 export class ExercisesController {
   constructor(private readonly service: ExercisesService) {}
 

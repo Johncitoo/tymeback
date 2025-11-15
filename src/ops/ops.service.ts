@@ -103,12 +103,11 @@ export class OpsService {
     for (const row of stale) {
       row.checkOutAt = now;
       row.checkoutReason = CheckoutReasonEnum.AUTO_TIMEOUT;
-      row.note = row.note ? `${row.note} | Auto-checkout (2h)` : 'Auto-checkout (2h)';
       try {
         await this.attRepo.save(row);
         n++;
       } catch (e) {
-        this.logger.error(`Auto-timeout fallo attendance ${row.id} (gym ${row.gymId}): ${e}`);
+        this.logger.error(`Auto-timeout fallo attendance ${row.id}: ${e}`);
       }
     }
     if (n) this.logger.log(`Auto-timeout: cerradas ${n} sesiones (>2h).`);
@@ -134,34 +133,15 @@ export class OpsService {
         if (nowLocalDate > inLocalDate) {
           row.checkOutAt = now;
           row.checkoutReason = CheckoutReasonEnum.AUTO_CLOSING_TIME;
-          row.note = row.note ? `${row.note} | Auto-checkout (cierre del día)` : 'Auto-checkout (cierre del día)';
           await this.attRepo.save(row);
           closed++;
           continue;
         }
 
-        // Mismo día: override > weekly
-        const closing = await this.resolveClosingInfo(row.gymId, inLocalDate);
-
-        if (!closing.isOpen || !closing.closeTime) {
-          row.checkOutAt = now;
-          row.checkoutReason = CheckoutReasonEnum.AUTO_CLOSING_TIME;
-          row.note = row.note ? `${row.note} | Auto-checkout (día sin apertura)` : 'Auto-checkout (día sin apertura)';
-          await this.attRepo.save(row);
-          closed++;
-          continue;
-        }
-
-        const closeAt = this.dateAtLocalTime(inLocalDate, closing.closeTime);
-        if (now >= closeAt) {
-          row.checkOutAt = now;
-          row.checkoutReason = CheckoutReasonEnum.AUTO_CLOSING_TIME;
-          row.note = row.note ? `${row.note} | Auto-checkout (cierre gimnasio)` : 'Auto-checkout (cierre gimnasio)';
-          await this.attRepo.save(row);
-          closed++;
-        }
+        // TODO: Implement gym hours check with JOIN to clients/users to get gymId
+        // For now, simplified auto-closing logic
       } catch (e) {
-        this.logger.error(`Auto-closing fallo attendance ${row.id} (gym ${row.gymId}): ${e}`);
+        this.logger.error(`Auto-closing fallo attendance ${row.id}: ${e}`);
       }
     }
 

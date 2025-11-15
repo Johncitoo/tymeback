@@ -5,14 +5,14 @@ import { IsUUID, IsObject } from 'class-validator';
  * payload libre (validado en front): { type: 'NORMAL'|'DROPSET'|'TOPSET'|'SUPERSET'|'GIANT', parts: [{kg,reps},...], restSeconds, notes, ... }
  */
 export class UpdateExerciseOverrideDto {
-  @IsUUID()
+  @IsUUID('all')
   gymId!: string;
 
-  @IsUUID()
+  @IsUUID('all')
   assignmentId!: string;
 
   /** ID del routine_day_exercise al que aplica el override */
-  @IsUUID()
+  @IsUUID('all')
   rdeId!: string;
 
   @IsObject()

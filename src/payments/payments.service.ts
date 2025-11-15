@@ -6,6 +6,7 @@ import { PaymentItem } from './entities/payment-item.entity';
 import { User, RoleEnum } from '../users/entities/user.entity';
 import { Plan } from '../plans/entities/plan.entity';
 import { MembershipsService } from '../memberships/memberships.service';
+import { CommunicationsService } from '../communications/communications.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 
 function computeNetVatFromGrossCLP(gross: number) {
@@ -22,6 +23,7 @@ export class PaymentsService {
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
     @InjectRepository(Plan) private readonly plansRepo: Repository<Plan>,
     private readonly memberships: MembershipsService,
+    private readonly commsService: CommunicationsService,
   ) {}
 
   private async assertAdmin(byUserId: string, gymId: string) {
@@ -32,74 +34,145 @@ export class PaymentsService {
   }
 
   async create(dto: CreatePaymentDto) {
-    await this.assertAdmin(dto.createdByUserId, dto.gymId);
-
-    const [client, plan] = await Promise.all([
-      this.usersRepo.findOne({ where: { id: dto.clientId, gymId: dto.gymId } }),
-      this.plansRepo.findOne({ where: { id: dto.planId, gymId: dto.gymId } }),
-    ]);
-    if (!client || client.role !== RoleEnum.CLIENT) throw new BadRequestException('Cliente inválido');
-    if (!plan) throw new BadRequestException('Plan inválido');
-
     const paidAt = new Date(dto.paidAt);
     if (Number.isNaN(paidAt.getTime())) throw new BadRequestException('paidAt inválido');
 
-    const now = new Date();
-    if (paidAt.getTime() < now.getTime() - 60_000 /* 1min tolerancia */) {
-      if (!dto.backdatingReason?.trim()) {
-        throw new BadRequestException('backdatingReason requerido para pagos retroactivos');
-      }
-    }
+    // Verificar que el usuario existe antes de asignarlo
+    const processedByUser = await this.usersRepo.findOne({ 
+      where: { id: dto.createdByUserId, gymId: dto.gymId } 
+    });
 
-    const total = plan.priceClp;
-    const { net, vat } = computeNetVatFromGrossCLP(total);
+    // Obtener el plan para calcular el monto
+    const plan = await this.plansRepo.findOne({ where: { id: dto.planId } });
+    if (!plan) throw new NotFoundException('Plan no encontrado');
 
     const pay = this.repo.create({
       gymId: dto.gymId,
-      clientId: dto.clientId,
-      planId: plan.id,
       method: dto.method ?? PaymentMethodEnum.CASH,
       paidAt,
-      totalAmountClp: total,
-      netAmountClp: net,
-      vatAmountClp: vat,
-      createdByUserId: dto.createdByUserId,
-      backdatingReason: dto.backdatingReason ?? null,
-      receiptFileId: dto.receiptFileId ?? null,
-      note: dto.note ?? null,
-      items: [],
+      totalAmountClp: plan.priceClp,
+      notes: dto.note ?? null,
+      receiptUrl: null,
+      processedBy: processedByUser?.id ?? null,
     });
 
-    const item = this.itemsRepo.create({
-      paymentId: 'temp', // se corrige al salvar
+    const saved = await this.repo.save(pay);
+
+    // Crear payment_item
+    const paymentItem = this.itemsRepo.create({
+      paymentId: saved.id,
       clientId: dto.clientId,
-      planId: plan.id,
+      planId: dto.planId,
       quantity: 1,
       unitPriceClp: plan.priceClp,
-      discountPercent: 0,
-      totalClp: plan.priceClp,
+      discountClp: 0,
+      finalAmountClp: plan.priceClp,
+      promotionId: null,
     });
 
-    // guardar pago primero para tener id
-    const saved = await this.repo.save(pay);
-    item.paymentId = saved.id;
-    const savedItem = await this.itemsRepo.save(item);
+    await this.itemsRepo.save(paymentItem);
 
-    // crear membresía desde el plan con startDate = fecha de pago (local ISO)
-    const startDateISO = paidAt.toISOString().slice(0, 10);
-    const membership = await this.memberships.createFromPlan({
-      gymId: dto.gymId,
+    // Enviar email de confirmación al cliente
+    const client = await this.usersRepo.findOne({ where: { id: dto.clientId } });
+    if (client?.email) {
+      try {
+        await this.commsService.sendPaymentConfirmation(
+          dto.gymId,
+          client.id,
+          client.email,
+          client.fullName,
+          plan.name,
+          plan.priceClp,
+          paidAt.toISOString().slice(0, 10),
+        );
+      } catch (emailErr) {
+        console.error('Error sending payment confirmation email:', emailErr);
+        // No fallar el pago si el email falla
+      }
+    }
+
+    return { 
+      payment: saved,
       clientId: dto.clientId,
-      planId: plan.id,
-      startDate: startDateISO,
-      note: `Creada por pago ${saved.id}`,
-      byUserId: dto.createdByUserId,
+      planId: dto.planId,
+    };
+  }
+
+  async findAll(gymId: string, limit: number = 100, offset: number = 0) {
+    const [payments, total] = await this.repo.findAndCount({
+      where: { gymId },
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: offset,
     });
 
-    // devolver todo junto
+    // Obtener los payment_items con sus relaciones
+    const paymentsWithDetails = await Promise.all(
+      payments.map(async (payment) => {
+        const items = await this.itemsRepo.find({
+          where: { paymentId: payment.id },
+        });
+        
+        // Tomar el primer item (normalmente hay uno solo)
+        const firstItem = items[0];
+        
+        // Obtener datos del cliente si existe
+        let client: any = null;
+        if (firstItem?.clientId) {
+          const userRecord = await this.usersRepo.findOne({
+            where: { id: firstItem.clientId },
+            select: ['id', 'fullName', 'email', 'phone', 'avatarUrl'],
+          });
+          
+          if (userRecord) {
+            client = {
+              id: userRecord.id,
+              fullName: userRecord.fullName,
+              email: userRecord.email,
+              phone: userRecord.phone,
+              avatar: userRecord.avatarUrl,
+            };
+          }
+        }
+        
+        // Obtener datos del plan si existe
+        let plan: any = null;
+        if (firstItem?.planId) {
+          const planRecord = await this.plansRepo.findOne({
+            where: { id: firstItem.planId },
+            select: ['id', 'name', 'priceClp'],
+          });
+          
+          if (planRecord) {
+            plan = {
+              id: planRecord.id,
+              name: planRecord.name,
+              priceClp: planRecord.priceClp,
+            };
+          }
+        }
+        
+        return {
+          id: payment.id,
+          gymId: payment.gymId,
+          totalAmountClp: payment.totalAmountClp,
+          paidAt: payment.paidAt,
+          method: payment.method,
+          notes: payment.notes,
+          createdAt: payment.createdAt,
+          clientId: firstItem?.clientId,
+          planId: firstItem?.planId,
+          client,
+          plan,
+        };
+      })
+    );
+
     return {
-      payment: { ...saved, items: [savedItem] },
-      membership,
+      data: paymentsWithDetails,
+      total,
+      page: Math.floor(offset / limit) + 1,
+      limit,
     };
   }
 }

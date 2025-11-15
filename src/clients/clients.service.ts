@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, ILike, Repository } from 'typeorm';
+import { DataSource, ILike, IsNull, Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
 import { EmergencyContact } from './entities/emergency-contact.entity';
 import { CreateClientDto } from './dto/create-client.dto';
@@ -86,14 +86,19 @@ export class ClientsService {
   }
 
   async findAll(q: QueryClientsDto) {
-    const qb = this.usersRepo
-      .createQueryBuilder('u')
-      .innerJoin(Client, 'c', 'c.user_id = u.id')
-      .where('u.gym_id = :gymId', { gymId: q.gymId })
-      .andWhere('u.deleted_at IS NULL');
+    // Simplificado: buscar users con role CLIENT y luego filtrar
+    const where: any = { 
+      role: RoleEnum.CLIENT,
+      deletedAt: IsNull() 
+    };
+    
+    // TODO: Filtrar por gymId cuando esté disponible en el contexto
+    if (q.gymId) where.gymId = q.gymId;
+    if (typeof q.isActive === 'boolean') where.isActive = q.isActive;
 
-    if (typeof q.isActive === 'boolean') qb.andWhere('u.is_active = :ia', { ia: q.isActive });
-    if (q.trainerId) qb.andWhere('c.trainer_id = :tid', { tid: q.trainerId });
+    const qb = this.usersRepo.createQueryBuilder('u').where(where);
+
+    // Filtro por búsqueda de texto
     if (q.q) {
       const like = `%${q.q}%`;
       qb.andWhere(
@@ -110,7 +115,20 @@ export class ClientsService {
 
     // Adjunta info de client (trainerId/nutritionistId) en bloque
     const ids = data.map((u) => u.id);
-    const clientRows = await this.clientsRepo.findByIds(ids.map((id) => ({ userId: id } as any)));
+    
+    let clientRows: Client[] = [];
+    if (ids.length > 0) {
+      const qbClients = this.clientsRepo.createQueryBuilder('c');
+      qbClients.where('c.userId IN (:...ids)', { ids });
+      
+      // Si se filtró por trainerId, también filtrar aquí
+      if (q.trainerId) {
+        qbClients.andWhere('c.trainerId = :tid', { tid: q.trainerId });
+      }
+      
+      clientRows = await qbClients.getMany();
+    }
+    
     const byId = new Map(clientRows.map((c) => [c.userId, c]));
     const result = data.map((u) => ({
       ...u,

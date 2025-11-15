@@ -4,7 +4,7 @@ import { CreateNutritionPlanDto } from './dto/create-nutrition-plan.dto';
 import { UpdateNutritionPlanDto } from './dto/update-nutrition-plan.dto';
 import { QueryNutritionPlansDto } from './dto/query-nutrition-plans.dto';
 
-@Controller('api/nutrition/nutrition-plans')
+@Controller('nutrition/nutrition-plans')
 export class NutritionPlansController {
   constructor(private readonly service: NutritionPlansService) {}
 

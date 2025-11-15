@@ -10,7 +10,7 @@ export class UpdateRoutineDto {
   description?: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   createdByUserId?: string;
 
   @IsOptional()

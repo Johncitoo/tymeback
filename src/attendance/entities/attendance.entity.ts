@@ -10,13 +10,10 @@ export enum CheckoutReasonEnum {
 }
 
 @Entity({ name: 'attendance' })
-@Index(['gymId', 'clientId', 'checkInAt'])
+@Index(['clientId', 'checkInAt'])
 export class Attendance {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
-
-  @Column('uuid', { name: 'gym_id' })
-  gymId!: string;
 
   @Column('uuid', { name: 'client_id' })
   clientId!: string;
@@ -37,12 +34,6 @@ export class Attendance {
   })
   checkoutReason!: CheckoutReasonEnum | null;
 
-  @Column('text', { nullable: true })
-  note!: string | null;
-
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
-
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
-  updatedAt!: Date;
 }

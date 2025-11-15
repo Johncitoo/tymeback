@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { RoutinesService } from './routines.service';
 import { CreateRoutineDto } from './dto/create-routine.dto';
 import { UpdateRoutineDto } from './dto/update-routine.dto';
@@ -9,8 +9,11 @@ import { ReorderDayExercisesDto } from './dto/reorder-day-exercises.dto';
 import { AssignRoutineDto } from './dto/assign-routine.dto';
 import { UpdateExerciseOverrideDto } from './dto/update-exercise-override.dto';
 import { QueryAssignmentsDto } from './dto/query-assignments.dto';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-@Controller('api/routines')
+@Controller('routines')
+@UseGuards(JwtAuthGuard)
 export class RoutinesController {
   constructor(private readonly service: RoutinesService) {}
 
@@ -34,15 +37,39 @@ export class RoutinesController {
     return this.service.listRoutines(q);
   }
 
+  // ---- assignments ---- (debe ir antes de @Get(':id'))
+  @Get('assignments')
+  listAssignments(@Query() q: QueryAssignmentsDto, @CurrentUser() user: any) {
+    return this.service.listAssignments({ ...q, gymId: user.gymId });
+  }
+
+  @Get('assignments/:id')
+  getAssignment(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.getAssignment(id, user.gymId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @Query('gymId') gymId: string) {
     return this.service.findRoutine(id, gymId);
+  }
+
+  @Delete(':id')
+  delete(@Param('id') id: string, @Query('gymId') gymId: string) {
+    return this.service.deleteRoutine(id, gymId);
   }
 
   // ---- days ----
   @Post('days')
   addDay(@Body() dto: AddDayDto) {
     return this.service.addDay(dto);
+  }
+
+  @Delete('days/:dayId')
+  deleteDay(
+    @Param('dayId') dayId: string,
+    @Query('gymId') gymId: string,
+  ) {
+    return this.service.deleteDay(dayId, gymId);
   }
 
   // ---- day exercises ----
@@ -62,18 +89,8 @@ export class RoutinesController {
 
   // ---- assignments ----
   @Post('assign')
-  assign(@Body() dto: AssignRoutineDto) {
-    return this.service.assign(dto);
-  }
-
-  @Get('assignments')
-  listAssignments(@Query() q: QueryAssignmentsDto) {
-    return this.service.listAssignments(q);
-  }
-
-  @Get('assignments/:id')
-  getAssignment(@Param('id') id: string, @Query('gymId') gymId: string) {
-    return this.service.getAssignment(id, gymId);
+  assign(@Body() dto: AssignRoutineDto, @CurrentUser() user: any) {
+    return this.service.assign(dto, user.gymId, user.userId);
   }
 
   @Patch('assignments/override')

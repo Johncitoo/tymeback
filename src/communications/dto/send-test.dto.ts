@@ -1,9 +1,6 @@
-import { IsEmail, IsString, IsUUID } from 'class-validator';
+import { IsEmail, IsString } from 'class-validator';
 
 export class SendTestDto {
-  @IsUUID()
-  gymId!: string;
-
   @IsEmail()
   to!: string;
 

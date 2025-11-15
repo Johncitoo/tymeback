@@ -6,7 +6,7 @@ import { ManualBurnDto } from './dto/manual-burn.dto';
 import { QueryBurnsDto } from './dto/query-burns.dto';
 import { QueryQrDto } from './dto/query-qr.dto';
 
-@Controller('api/session-burns')
+@Controller('session-burns')
 export class SessionBurnsController {
   constructor(private readonly service: SessionBurnsService) {}
 

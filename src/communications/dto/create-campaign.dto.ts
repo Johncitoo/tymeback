@@ -1,12 +1,6 @@
-import { IsJSON, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsJSON } from 'class-validator';
 
 export class CreateCampaignDto {
-  @IsUUID()
-  gymId!: string;
-
-  @IsString()
-  name!: string;
-
   @IsString()
   subject!: string;
 
@@ -16,7 +10,4 @@ export class CreateCampaignDto {
   @IsOptional()
   @IsJSON()
   filters?: string; // JSON string (se guarda como JSONB)
-
-  @IsUUID()
-  createdByUserId!: string;
 }

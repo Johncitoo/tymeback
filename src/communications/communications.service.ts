@@ -6,7 +6,7 @@ import {
   MoreThanOrEqual,
   LessThanOrEqual,
 } from 'typeorm';
-import { EmailTemplate, TemplatePurposeEnum } from './entities/email-template.entity';
+import { EmailTemplate } from './entities/email-template.entity';
 import { EmailCampaign, CampaignStatusEnum } from './entities/email-campaign.entity';
 import { CampaignRecipient, RecipientStatusEnum } from './entities/campaign-recipient.entity';
 import { EmailLog, EmailLogStatusEnum } from './entities/email-log.entity';
@@ -19,7 +19,7 @@ import { ScheduleCampaignDto } from './dto/schedule-campaign.dto';
 import { QueryTemplatesDto } from './dto/query-templates.dto';
 import { QueryCampaignsDto } from './dto/query-campaigns.dto';
 import { SendTestDto } from './dto/send-test.dto';
-import { SesMailerService } from './mailer/ses-mailer.service';
+import { ResendMailerService } from './mailer/resend-mailer.service';
 import { User, RoleEnum } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -36,7 +36,7 @@ export class CommunicationsService {
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
     @InjectRepository(Membership) private readonly memRepo: Repository<Membership>,
     @InjectRepository(Plan) private readonly plansRepo: Repository<Plan>,
-    private readonly mailer: SesMailerService,
+    private readonly mailer: ResendMailerService,
   ) {}
 
   // ---------- helpers ----------
@@ -49,37 +49,35 @@ export class CommunicationsService {
   }
 
   // ---------- Templates ----------
-  async createTemplate(dto: CreateTemplateDto) {
+  async createTemplate(gymId: string, dto: CreateTemplateDto) {
     const row = this.tplRepo.create({
-      gymId: dto.gymId,
+      gymId,
       name: dto.name,
       subject: dto.subject,
       html: dto.html,
-      purpose: dto.purpose ?? TemplatePurposeEnum.GENERAL,
       isActive: dto.isActive ?? true,
     });
     return this.tplRepo.save(row);
   }
 
-  async updateTemplate(id: string, dto: UpdateTemplateDto) {
-    const row = await this.tplRepo.findOne({ where: { id } });
+  async updateTemplate(gymId: string, id: string, dto: UpdateTemplateDto) {
+    const row = await this.tplRepo.findOne({ where: { id, gymId } });
     if (!row) throw new NotFoundException('Plantilla no encontrada');
     Object.assign(row, dto);
     return this.tplRepo.save(row);
   }
 
-  async listTemplates(q: QueryTemplatesDto) {
-    const where: any = { gymId: q.gymId };
-    if (q.purpose) where.purpose = q.purpose;
+  async listTemplates(gymId: string, q: QueryTemplatesDto) {
+    const where: any = { gymId };
     if (typeof q.isActive === 'string') where.isActive = q.isActive === 'true';
     return this.tplRepo.find({ where, order: { updatedAt: 'DESC' } });
   }
 
   // ---------- Test send ----------
-  async sendTest(dto: SendTestDto) {
+  async sendTest(gymId: string, dto: SendTestDto) {
     const messageId = await this.mailer.send(dto.to, dto.subject, dto.html);
     await this.logRepo.save(this.logRepo.create({
-      gymId: dto.gymId,
+      gymId,
       toEmail: dto.to,
       subject: dto.subject,
       templateId: null,
@@ -92,29 +90,27 @@ export class CommunicationsService {
   }
 
   // ---------- Campaigns ----------
-  async createCampaign(dto: CreateCampaignDto) {
+  async createCampaign(gymId: string, userId: string, dto: CreateCampaignDto) {
     const filters = dto.filters ? JSON.parse(dto.filters) : null;
     const row = this.campRepo.create({
-      gymId: dto.gymId,
-      name: dto.name,
+      gymId,
       subject: dto.subject,
       html: dto.html,
       filters,
       status: CampaignStatusEnum.DRAFT,
-      scheduledAt: null,
-      createdByUserId: dto.createdByUserId,
+      scheduledAt: undefined,
+      createdBy: userId,
     });
     return this.campRepo.save(row);
   }
 
-  async updateCampaign(id: string, dto: UpdateCampaignDto) {
-    const row = await this.campRepo.findOne({ where: { id } });
+  async updateCampaign(gymId: string, id: string, dto: UpdateCampaignDto) {
+    const row = await this.campRepo.findOne({ where: { id, gymId } });
     if (!row) throw new NotFoundException('Campaña no encontrada');
     if (row.status !== CampaignStatusEnum.DRAFT) {
       throw new Error('Solo se puede editar una campaña en DRAFT');
     }
     Object.assign(row, {
-      name: dto.name ?? row.name,
       subject: dto.subject ?? row.subject,
       html: dto.html ?? row.html,
       filters: dto.filters ? JSON.parse(dto.filters) : row.filters,
@@ -122,8 +118,8 @@ export class CommunicationsService {
     return this.campRepo.save(row);
   }
 
-  async scheduleCampaign(id: string, dto: ScheduleCampaignDto) {
-    const row = await this.campRepo.findOne({ where: { id, gymId: dto.gymId } });
+  async scheduleCampaign(gymId: string, id: string, dto: ScheduleCampaignDto) {
+    const row = await this.campRepo.findOne({ where: { id, gymId } });
     if (!row) throw new NotFoundException('Campaña no encontrada');
     row.status = CampaignStatusEnum.SCHEDULED;
     row.scheduledAt = new Date(dto.scheduledAt);
@@ -134,12 +130,12 @@ export class CommunicationsService {
     const row = await this.campRepo.findOne({ where: { id, gymId } });
     if (!row) throw new NotFoundException('Campaña no encontrada');
     row.status = CampaignStatusEnum.CANCELLED;
-    row.scheduledAt = null;
+    row.scheduledAt = undefined;
     return this.campRepo.save(row);
   }
 
-  async listCampaigns(q: QueryCampaignsDto) {
-    const where: any = { gymId: q.gymId };
+  async listCampaigns(gymId: string, q: QueryCampaignsDto) {
+    const where: any = { gymId };
     if (q.status) where.status = q.status;
     return this.campRepo.find({ where, order: { createdAt: 'DESC' } });
   }
@@ -161,7 +157,7 @@ export class CommunicationsService {
     if (filters?.activeOnly) {
       const today = this.todayISO();
       const activeMems = await this.memRepo.find({
-        where: { gymId, startDate: LessThanOrEqual(today), endDate: MoreThanOrEqual(today) },
+        where: { startsOn: LessThanOrEqual(today), endsOn: MoreThanOrEqual(today) },
         select: ['clientId'],
       });
       const activeSet = new Set(activeMems.map(m => m.clientId));
@@ -175,7 +171,7 @@ export class CommunicationsService {
     const camp = await this.campRepo.findOne({ where: { id, gymId } });
     if (!camp) throw new NotFoundException('Campaña no encontrada');
 
-    camp.status = CampaignStatusEnum.SENDING;
+    camp.status = CampaignStatusEnum.SENT;
     await this.campRepo.save(camp);
 
     const recipients = await this.resolveRecipients(gymId, camp.filters ?? {});
@@ -194,7 +190,7 @@ export class CommunicationsService {
 
     for (const rec of rows) {
       try {
-        const messageId = await this.mailer.send(rec.toEmail, camp.subject, camp.html);
+        const messageId = await this.mailer.send(rec.toEmail, camp.subject, camp.html ?? '');
         rec.status = RecipientStatusEnum.SENT;
         rec.sentAt = new Date();
         await this.recRepo.save(rec);
@@ -226,7 +222,7 @@ export class CommunicationsService {
     }
 
     camp.status = CampaignStatusEnum.SENT;
-    camp.scheduledAt = null;
+    camp.scheduledAt = undefined;
     return this.campRepo.save(camp);
   }
 
@@ -237,7 +233,7 @@ export class CommunicationsService {
     const gyms = await this.tplRepo
       .createQueryBuilder('t')
       .select('DISTINCT t.gym_id', 'gym_id')
-      .where('t.purpose = :p AND t.is_active = true', { p: TemplatePurposeEnum.REMINDER_EXPIRY })
+      .where('t.is_active = true')
       .getRawMany<{ gym_id: string }>();
 
     const daysSet = [7, 3, 1];
@@ -248,8 +244,8 @@ export class CommunicationsService {
 
       // plantilla por gimnasio
       const tpl = await this.tplRepo.findOne({
-        where: { gymId, purpose: TemplatePurposeEnum.REMINDER_EXPIRY, isActive: true },
-        order: { updatedAt: 'DESC' },
+        where: { gymId, isActive: true },
+        order: { createdAt: 'DESC' },
       });
       if (!tpl) continue;
 
@@ -261,10 +257,18 @@ export class CommunicationsService {
         ));
         const targetISO = target.toISOString().slice(0, 10);
 
-        // membresías que vencen ese día
+        // Primero obtenemos los clientIds del gimnasio
+        const gymClients = await this.usersRepo.find({
+          where: { gymId, role: RoleEnum.CLIENT },
+          select: ['id'],
+        });
+        const clientIds = gymClients.map(u => u.id);
+        if (clientIds.length === 0) continue;
+
+        // membresías que vencen ese día para clientes de este gimnasio
         const mems = await this.memRepo.find({
-          where: { gymId, endDate: targetISO },
-          select: ['id', 'clientId', 'planId', 'endDate'],
+          where: { endsOn: targetISO, clientId: In(clientIds) },
+          select: ['id', 'clientId', 'planId'],
         });
         if (mems.length === 0) continue;
 
@@ -296,7 +300,7 @@ export class CommunicationsService {
           const html = this.interpolate(tpl.html, {
             nombre: user.fullName ?? 'Cliente',
             plan: planName,
-            fecha_vencimiento: m.endDate,
+            fecha_vencimiento: targetISO,
           });
 
           try {
@@ -332,6 +336,110 @@ export class CommunicationsService {
           }
         }
       }
+    }
+  }
+
+  // ---------- Email de Bienvenida ----------
+  async sendWelcomeEmail(gymId: string, clientId: string, toEmail: string, clientName: string) {
+    const tpl = await this.tplRepo.findOne({
+      where: { gymId, isActive: true },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!tpl) {
+      console.log(`No welcome template found for gym ${gymId}`);
+      return; // No hay plantilla activa
+    }
+
+    const html = this.interpolate(tpl.html, {
+      nombre: clientName || 'Cliente',
+    });
+
+    try {
+      const messageId = await this.mailer.send(toEmail, tpl.subject, html);
+      await this.logRepo.save(this.logRepo.create({
+        gymId,
+        toEmail,
+        subject: tpl.subject,
+        templateId: tpl.id,
+        campaignId: null,
+        status: EmailLogStatusEnum.SENT,
+        providerMessageId: messageId,
+        error: null,
+      }));
+    } catch (e: any) {
+      await this.logRepo.save(this.logRepo.create({
+        gymId,
+        toEmail,
+        subject: tpl.subject,
+        templateId: tpl.id,
+        campaignId: null,
+        status: EmailLogStatusEnum.FAILED,
+        providerMessageId: null,
+        error: e?.message ?? String(e),
+      }));
+      throw e;
+    }
+  }
+
+  // ---------- Email de Confirmación de Pago ----------
+  async sendPaymentConfirmation(
+    gymId: string,
+    clientId: string,
+    toEmail: string,
+    clientName: string,
+    planName: string,
+    amount: number,
+    paymentDate: string,
+  ) {
+    const tpl = await this.tplRepo.findOne({
+      where: { gymId, isActive: true },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!tpl) {
+      console.log(`No payment confirmation template found for gym ${gymId}`);
+      return; // No hay plantilla activa
+    }
+
+    // Calcular fecha de vencimiento (30 días desde hoy, ejemplo)
+    const today = new Date();
+    const newExpiry = new Date(today);
+    newExpiry.setDate(newExpiry.getDate() + 30);
+    const newExpiryStr = newExpiry.toISOString().slice(0, 10);
+
+    const html = this.interpolate(tpl.html, {
+      nombre: clientName || 'Cliente',
+      plan: planName,
+      monto: amount.toString(),
+      fecha_pago: paymentDate,
+      nueva_fecha_vencimiento: newExpiryStr,
+    });
+
+    try {
+      const messageId = await this.mailer.send(toEmail, tpl.subject, html);
+      await this.logRepo.save(this.logRepo.create({
+        gymId,
+        toEmail,
+        subject: tpl.subject,
+        templateId: tpl.id,
+        campaignId: null,
+        status: EmailLogStatusEnum.SENT,
+        providerMessageId: messageId,
+        error: null,
+      }));
+    } catch (e: any) {
+      await this.logRepo.save(this.logRepo.create({
+        gymId,
+        toEmail,
+        subject: tpl.subject,
+        templateId: tpl.id,
+        campaignId: null,
+        status: EmailLogStatusEnum.FAILED,
+        providerMessageId: null,
+        error: e?.message ?? String(e),
+      }));
+      throw e;
     }
   }
 }

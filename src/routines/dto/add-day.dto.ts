@@ -1,10 +1,11 @@
 import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class AddDayDto {
-  @IsUUID()
-  gymId!: string;
+  @IsOptional()
+  @IsUUID('all')
+  gymId?: string;
 
-  @IsUUID()
+  @IsUUID('all')
   routineId!: string;
 
   @IsInt()

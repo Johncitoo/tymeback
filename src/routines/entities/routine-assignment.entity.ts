@@ -40,7 +40,7 @@ export class RoutineAssignment {
   @Column('uuid', { name: 'client_id' })
   clientId!: string;
 
-  @Column('uuid', { name: 'assigned_by_user_id', nullable: true })
+  @Column('uuid', { name: 'assigned_by', nullable: true })
   assignedByUserId!: string | null;
 
   @CreateDateColumn({ type: 'timestamptz', name: 'assigned_at' })

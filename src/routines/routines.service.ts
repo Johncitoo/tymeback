@@ -31,14 +31,18 @@ export class RoutinesService {
   ) {}
 
   // ---- helpers ----
-  private async getRoutineOrThrow(id: string, gymId: string) {
-    const r = await this.routineRepo.findOne({ where: { id, gymId } });
+  private async getRoutineOrThrow(id: string, gymId?: string) {
+    const where: any = { id };
+    if (gymId) where.gymId = gymId;
+    const r = await this.routineRepo.findOne({ where });
     if (!r) throw new NotFoundException('Rutina no encontrada');
     return r;
   }
 
-  private async getDayOrThrow(id: string, gymId: string) {
-    const d = await this.dayRepo.findOne({ where: { id, gymId } });
+  private async getDayOrThrow(id: string, gymId?: string) {
+    const where: any = { id };
+    if (gymId) where.gymId = gymId;
+    const d = await this.dayRepo.findOne({ where });
     if (!d) throw new NotFoundException('Día no encontrado');
     return d;
   }
@@ -99,23 +103,19 @@ export class RoutinesService {
       take: q.limit ?? 20,
     });
 
-    // conteo de asignaciones
-    const ids = data.map((r) => r.id);
-    let counts: Record<string, number> = {};
-    if (ids.length) {
-      const raw = await this.assignRepo
-        .createQueryBuilder('a')
-        .select('a.routine_id', 'rid')
-        .addSelect('COUNT(*)::int', 'n')
-        .where('a.gym_id = :g AND a.is_active = true', { g: q.gymId })
-        .andWhere('a.routine_id IN (:...ids)', { ids })
-        .groupBy('a.routine_id')
-        .getRawMany<{ rid: string; n: number }>();
-      counts = Object.fromEntries(raw.map((r) => [r.rid, Number(r.n)]));
-    }
+    // Cargar días manualmente para cada rutina
+    const routinesWithDays = await Promise.all(
+      data.map(async (routine) => {
+        const days = await this.dayRepo.find({
+          where: { gymId: q.gymId, routineId: routine.id },
+          order: { dayIndex: 'ASC' },
+        });
+        return { ...routine, days, assignedCount: 0 };
+      })
+    );
 
     return {
-      data: data.map((r) => ({ ...r, assignedCount: counts[r.id] ?? 0 })),
+      data: routinesWithDays,
       total,
     };
   }
@@ -128,22 +128,33 @@ export class RoutinesService {
       ? await this.rdeRepo.find({
           where: { gymId, routineId: id },
           order: { orderIndex: 'ASC' },
+          relations: ['exercise'],
         })
       : [];
-    return { routine: r, days, exercises: rdes };
+    const grouped = days.map((d) => ({
+      ...d,
+      exercises: rdes.filter((e) => e.dayId === d.id),
+    }));
+    return { ...r, days: grouped };
+  }
+
+  async deleteRoutine(id: string, gymId: string): Promise<void> {
+    const r = await this.getRoutineOrThrow(id, gymId);
+    await this.routineRepo.softRemove(r);
   }
 
   // ---- days ----
   async addDay(dto: AddDayDto) {
-    await this.getRoutineOrThrow(dto.routineId, dto.gymId);
+    const routine = await this.getRoutineOrThrow(dto.routineId, dto.gymId);
+    const gymId = dto.gymId || routine.gymId;
 
     const exists = await this.dayRepo.findOne({
-      where: { gymId: dto.gymId, routineId: dto.routineId, dayIndex: dto.dayIndex },
+      where: { gymId, routineId: dto.routineId, dayIndex: dto.dayIndex },
     });
     if (exists) throw new BadRequestException('Ese índice de día ya existe en esta rutina');
 
     const row = this.dayRepo.create({
-      gymId: dto.gymId,
+      gymId,
       routineId: dto.routineId,
       dayIndex: dto.dayIndex,
       name: dto.name ?? null,
@@ -151,11 +162,18 @@ export class RoutinesService {
     return this.dayRepo.save(row);
   }
 
+  async deleteDay(dayId: string, gymId?: string): Promise<void> {
+    const day = await this.getDayOrThrow(dayId, gymId);
+    await this.dayRepo.remove(day);
+  }
+
   // ---- day exercises ----
   async addExercise(dto: AddExerciseDto) {
     const day = await this.getDayOrThrow(dto.dayId, dto.gymId);
+    const gymId = dto.gymId || day.gymId;
+    
     // valida que el exercise exista y sea del mismo gimnasio
-    const ex = await this.exRepo.findOne({ where: { id: dto.exerciseId, gymId: dto.gymId } });
+    const ex = await this.exRepo.findOne({ where: { id: dto.exerciseId, gymId } });
     if (!ex) throw new BadRequestException('Ejercicio inválido para este gimnasio');
 
     // próximo orderIndex si no lo envían
@@ -164,13 +182,13 @@ export class RoutinesService {
       const max = await this.rdeRepo
         .createQueryBuilder('e')
         .select('COALESCE(MAX(e.order_index), -1)', 'm')
-        .where('e.gym_id = :g AND e.day_id = :d', { g: dto.gymId, d: dto.dayId })
+        .where('e.gym_id = :g AND e.day_id = :d', { g: gymId, d: dto.dayId })
         .getRawOne<{ m: string }>();
       orderIndex = Number(max?.m ?? -1) + 1;
     }
 
     const row = this.rdeRepo.create({
-      gymId: dto.gymId,
+      gymId,
       routineId: day.routineId,
       dayId: dto.dayId,
       exerciseId: dto.exerciseId,
@@ -213,6 +231,7 @@ export class RoutinesService {
     });
     const rdes = await this.rdeRepo.find({
       where: { gymId, routineId },
+      relations: ['exercise'],
       order: { orderIndex: 'ASC' },
     });
 
@@ -222,6 +241,9 @@ export class RoutinesService {
       byDay[e.dayId].push({
         rdeId: e.id,
         exerciseId: e.exerciseId,
+        name: e.exercise?.name || 'Ejercicio sin nombre',
+        description: e.exercise?.description,
+        imageUrl: e.exercise?.imageUrl,
         orderIndex: e.orderIndex,
         sets: e.sets,
         reps: e.reps,
@@ -240,18 +262,18 @@ export class RoutinesService {
     };
   }
 
-  async assign(dto: AssignRoutineDto) {
-    await this.getRoutineOrThrow(dto.routineId, dto.gymId);
+  async assign(dto: AssignRoutineDto, gymId: string, assignedByUserId: string) {
+    await this.getRoutineOrThrow(dto.routineId, gymId);
     if (!dto.clientIds?.length) throw new BadRequestException('clientIds vacío');
 
-    const snapshot = await this.buildSnapshot(dto.routineId, dto.gymId);
+    const snapshot = await this.buildSnapshot(dto.routineId, gymId);
 
     const rows = dto.clientIds.map((cid) =>
       this.assignRepo.create({
-        gymId: dto.gymId,
+        gymId,
         routineId: dto.routineId,
         clientId: cid,
-        assignedByUserId: dto.assignedByUserId,
+        assignedByUserId,
         isActive: true,
         exerciseOverrides: null,
         snapshot,
@@ -278,6 +300,20 @@ export class RoutinesService {
   async getAssignment(id: string, gymId: string) {
     const a = await this.assignRepo.findOne({ where: { id, gymId } });
     if (!a) throw new NotFoundException('Asignación no encontrada');
+    
+    // Regenerar snapshot con datos completos del ejercicio si no tiene nombres
+    if (a.snapshot?.days) {
+      const needsUpdate = a.snapshot.days.some((day: any) => 
+        day.exercises?.some((ex: any) => !ex.name)
+      );
+      
+      if (needsUpdate) {
+        const freshSnapshot = await this.buildSnapshot(a.routineId, gymId);
+        a.snapshot = freshSnapshot;
+        await this.assignRepo.save(a);
+      }
+    }
+    
     return a;
   }
 

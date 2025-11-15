@@ -4,7 +4,7 @@ import { CreateBodyEvaluationDto } from './dto/create-body-evaluation.dto';
 import { UpdateBodyEvaluationDto } from './dto/update-body-evaluation.dto';
 import { QueryBodyEvaluationsDto } from './dto/query-body-evaluations.dto';
 
-@Controller('api/nutrition/body-evaluations')
+@Controller('nutrition/body-evaluations')
 export class BodyEvaluationsController {
   constructor(private readonly service: BodyEvaluationsService) {}
 

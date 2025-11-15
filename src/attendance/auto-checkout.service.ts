@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, In } from 'typeorm';
-import { Attendance } from './entities/attendance.entity';
+import { Attendance, CheckoutReasonEnum } from './entities/attendance.entity';
 import { GymHour } from '../gym-hours/entities/gym-hour.entity';
 import { GymHourOverride } from '../gym-hours/entities/gym-hour-override.entity';
 
@@ -25,8 +25,6 @@ export class AutoCheckoutService {
 
   @Cron('*/5 * * * *', { timeZone: TZ })
   async run() {
-    const now = new Date();
-
     // Hasta 500 sesiones abiertas por corrida
     const open = await this.attRepo.find({
       where: { checkOutAt: IsNull() },
@@ -35,33 +33,15 @@ export class AutoCheckoutService {
     });
     if (open.length === 0) return;
 
-    // Agrupar por gym para resolver horarios
-    const gyms = Array.from(new Set(open.map((o) => o.gymId)));
-
-    // Pre-cargar horarios semanales por gym
-    const weekly = new Map<string, any[]>();
-    for (const g of gyms) {
-      const list = await this.hoursRepo.find({ where: { gymId: g } });
-      weekly.set(g, list as unknown as any[]);
-    }
-
-    // Pre-cargar overrides (traemos todos del/los gyms y luego mapeamos por fecha)
-    const allOv = await this.ovRepo.find({
-      where: { gymId: In(gyms) },
-    });
-    const ovMap = new Map<string, any>(); // key: gymId|YYYY-MM-DD
-    for (const ov of allOv as unknown as any[]) {
-      const key = `${ov.gymId}|${ov.date}`;
-      ovMap.set(key, ov);
-    }
-
-    // Procesar y cerrar si corresponde (2h o cierre)
+    // TODO: Restaurar lógica de cierre por gym cuando attendance tenga gymId
+    // Por ahora solo cerramos por regla de 2 horas
+    const now = new Date();
     let updated = 0;
     for (const row of open) {
-      const cutoff = this.computeCutoff(row, weekly.get(row.gymId) ?? [], ovMap);
-      if (cutoff && now.getTime() >= cutoff.getTime()) {
+      const twoHours = new Date(row.checkInAt.getTime() + TWO_HOURS_MS);
+      if (now.getTime() >= twoHours.getTime()) {
         row.checkOutAt = now;
-        row.note = row.note ? `${row.note} | AUTO_CHECKOUT` : 'AUTO_CHECKOUT';
+        row.checkoutReason = CheckoutReasonEnum.AUTO_TIMEOUT;
         await this.attRepo.save(row);
         updated++;
       }
@@ -152,7 +132,8 @@ export class AutoCheckoutService {
   }
 
   // ---------- Lógica de cutoff (2h vs hora de cierre) ----------
-
+  // TODO: Restaurar cuando attendance tenga gymId para filtrar por gym
+  /*
   private computeCutoff(
     row: Attendance,
     weekly: any[], // tolerante a tipos
@@ -195,4 +176,5 @@ export class AutoCheckoutService {
     candidateTimes.sort((a, b) => a.getTime() - b.getTime());
     return candidateTimes[0];
   }
+  */
 }

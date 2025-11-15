@@ -1,9 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min, Matches } from 'class-validator';
 
 export class SalesSeriesDto {
-  @IsUUID()
-  gymId!: string;
+  @IsOptional()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID format'
+  })
+  gymId?: string;
 
   // cantidad de meses hacia atrás (incluye el mes de endMonth); default 12
   @IsOptional()

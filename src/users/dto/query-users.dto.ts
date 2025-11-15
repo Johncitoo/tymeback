@@ -1,12 +1,15 @@
 // src/users/dto/query-users.dto.ts
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min, Matches } from 'class-validator';
 import { RoleEnum } from '../entities/user.entity';
 
 export class QueryUsersDto {
-  // por ahora exigimos gymId en query; luego lo resolveremos por JWT/guard
-  @IsUUID()
-  gymId!: string;
+  // gymId es opcional - se toma del JWT si no se proporciona
+  @IsOptional()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID format'
+  })
+  gymId?: string;
 
   @IsOptional()
   @IsString()

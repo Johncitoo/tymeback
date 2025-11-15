@@ -10,6 +10,7 @@ import { User, RoleEnum } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CommunicationsService } from '../communications/communications.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly repo: Repository<User>,
+    private readonly commsService: CommunicationsService,
   ) {}
 
   private hashPassword(plain: string): string {
@@ -44,7 +46,19 @@ export class UsersService {
     });
 
     try {
-      return await this.repo.save(entity);
+      const saved = await this.repo.save(entity);
+
+      // Enviar email de bienvenida si es CLIENT y tiene email
+      if (saved.role === RoleEnum.CLIENT && saved.email) {
+        try {
+          await this.commsService.sendWelcomeEmail(saved.gymId, saved.id, saved.email, saved.fullName);
+        } catch (emailErr) {
+          // No fallar el registro si el email falla
+          console.error('Error sending welcome email:', emailErr);
+        }
+      }
+
+      return saved;
     } catch (err: any) {
       if (err?.code === '23505') {
         // Unique: email por gym (no null) o rut por gym

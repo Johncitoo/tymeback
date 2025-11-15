@@ -58,19 +58,18 @@ export class DashboardService {
   async summary(dto: DashboardSummaryDto) {
     const { start, end, ym } = this.monthRange(dto.month);
 
-    // ventas mes actual (con/sin IVA)
+    // ventas mes actual (solo total_amount_clp existe en BD)
     const qb = this.payRepo
       .createQueryBuilder('p')
       .select('COALESCE(SUM(p.total_amount_clp), 0)', 'gross')
-      .addSelect('COALESCE(SUM(p.net_amount_clp), 0)', 'net')
-      .addSelect('COALESCE(SUM(p.vat_amount_clp), 0)', 'vat')
-      .where('p.gym_id = :g', { g: dto.gymId })
-      .andWhere('p.paid_at >= :start AND p.paid_at < :end', { start, end });
+      .where('p.paid_at >= :start AND p.paid_at < :end', { start, end });
+    
+    if (dto.gymId) {
+      qb.andWhere('p.gym_id = :g', { g: dto.gymId });
+    }
 
-    const row = await qb.getRawOne<{ gross: string; net: string; vat: string }>();
+    const row = await qb.getRawOne<{ gross: string }>();
     const monthlyGross = Number(row?.gross ?? 0);
-    const monthlyNet = Number(row?.net ?? 0);
-    const monthlyVat = Number(row?.vat ?? 0);
 
     // año actual acumulado
     const y = Number(ym.slice(0, 4));
@@ -79,14 +78,14 @@ export class DashboardService {
     const yb = this.payRepo
       .createQueryBuilder('p')
       .select('COALESCE(SUM(p.total_amount_clp), 0)', 'gross')
-      .addSelect('COALESCE(SUM(p.net_amount_clp), 0)', 'net')
-      .addSelect('COALESCE(SUM(p.vat_amount_clp), 0)', 'vat')
-      .where('p.gym_id = :g', { g: dto.gymId })
-      .andWhere('p.paid_at >= :start AND p.paid_at < :end', { start: startYear, end: endYear });
-    const yRow = await yb.getRawOne<{ gross: string; net: string; vat: string }>();
+      .where('p.paid_at >= :start AND p.paid_at < :end', { start: startYear, end: endYear });
+    
+    if (dto.gymId) {
+      yb.andWhere('p.gym_id = :g', { g: dto.gymId });
+    }
+    
+    const yRow = await yb.getRawOne<{ gross: string }>();
     const ytdGross = Number(yRow?.gross ?? 0);
-    const ytdNet = Number(yRow?.net ?? 0);
-    const ytdVat = Number(yRow?.vat ?? 0);
 
     // último mes (para comparativa)
     const prevStart = this.addMonthsUTC(start, -1);
@@ -94,29 +93,35 @@ export class DashboardService {
     const pb = this.payRepo
       .createQueryBuilder('p')
       .select('COALESCE(SUM(p.total_amount_clp), 0)', 'gross')
-      .where('p.gym_id = :g', { g: dto.gymId })
-      .andWhere('p.paid_at >= :start AND p.paid_at < :end', { start: prevStart, end: prevEnd });
+      .where('p.paid_at >= :start AND p.paid_at < :end', { start: prevStart, end: prevEnd });
+    
+    if (dto.gymId) {
+      pb.andWhere('p.gym_id = :g', { g: dto.gymId });
+    }
+    
     const pRow = await pb.getRawOne<{ gross: string }>();
     const lastMonthGross = Number(pRow?.gross ?? 0);
 
     // miembros activos hoy (por fechas)
     const todayISO = this.now().toISOString().slice(0, 10);
-    const activeMembers = await this.memRepo.count({
-      where: {
-        gymId: dto.gymId,
-        startDate: LessThanOrEqual(todayISO),
-        endDate: MoreThanOrEqual(todayISO),
-      },
-    });
+    const memWhere: any = {
+      startsOn: LessThanOrEqual(todayISO),
+      endsOn: MoreThanOrEqual(todayISO),
+    };
+    // TODO: Filtrar por gymId cuando se tenga la relación
+    const activeMembers = await this.memRepo.count({ where: memWhere });
 
     // entrenadores activos (is_active = true)
-    const activeTrainers = await this.usersRepo.count({
-      where: { gymId: dto.gymId, role: RoleEnum.TRAINER, isActive: true },
-    });
+    const trainerWhere: any = { role: RoleEnum.TRAINER, isActive: true };
+    if (dto.gymId) {
+      trainerWhere.gymId = dto.gymId;
+    }
+    const activeTrainers = await this.usersRepo.count({ where: trainerWhere });
 
     // clientes dentro del gimnasio (asistencias abiertas)
+    // TODO: Filtrar por gymId cuando attendance tenga relación con gym
     const inside = await this.attRepo.count({
-      where: { gymId: dto.gymId, checkOutAt: IsNull() },
+      where: { checkOutAt: IsNull() },
     });
 
     // promedio ingresos por miembro (evitar división por cero)
@@ -124,8 +129,12 @@ export class DashboardService {
       activeMembers > 0 ? Math.round(monthlyGross / activeMembers) : 0;
 
     // últimos pagos (tabla)
+    const payWhere: any = {};
+    if (dto.gymId) {
+      payWhere.gymId = dto.gymId;
+    }
     const lastPayments = await this.payRepo.find({
-      where: { gymId: dto.gymId },
+      where: payWhere,
       order: { paidAt: 'DESC' },
       take: 10,
     });
@@ -133,9 +142,9 @@ export class DashboardService {
     return {
       month: ym,
       sales: {
-        monthly: { grossClp: monthlyGross, netClp: monthlyNet, vatClp: monthlyVat },
+        monthly: { grossClp: monthlyGross, netClp: 0, vatClp: 0 },
         lastMonth: { grossClp: lastMonthGross },
-        ytd: { grossClp: ytdGross, netClp: ytdNet, vatClp: ytdVat },
+        ytd: { grossClp: ytdGross, netClp: 0, vatClp: 0 },
       },
       people: {
         activeMembers,
@@ -164,17 +173,18 @@ export class DashboardService {
       const qb = this.payRepo
         .createQueryBuilder('p')
         .select('COALESCE(SUM(p.total_amount_clp), 0)', 'gross')
-        .addSelect('COALESCE(SUM(p.net_amount_clp), 0)', 'net')
-        .addSelect('COALESCE(SUM(p.vat_amount_clp), 0)', 'vat')
-        .where('p.gym_id = :g', { g: dto.gymId })
-        .andWhere('p.paid_at >= :s AND p.paid_at < :e', { s: mStart, e: mEnd });
+        .where('p.paid_at >= :s AND p.paid_at < :e', { s: mStart, e: mEnd });
+      
+      if (dto.gymId) {
+        qb.andWhere('p.gym_id = :g', { g: dto.gymId });
+      }
 
-      const row = await qb.getRawOne<{ gross: string; net: string; vat: string }>();
+      const row = await qb.getRawOne<{ gross: string }>();
       points.push({
         month: ym,
         grossClp: Number(row?.gross ?? 0),
-        netClp: Number(row?.net ?? 0),
-        vatClp: Number(row?.vat ?? 0),
+        netClp: 0,
+        vatClp: 0,
       });
     }
 
@@ -183,8 +193,12 @@ export class DashboardService {
 
   // ----------------- ÚLTIMOS PAGOS -----------------
   async recentPayments(dto: RecentPaymentsDto) {
+    const where: any = {};
+    if (dto.gymId) {
+      where.gymId = dto.gymId;
+    }
     const payments = await this.payRepo.find({
-      where: { gymId: dto.gymId },
+      where,
       order: { paidAt: 'DESC' },
       take: dto.limit,
     });

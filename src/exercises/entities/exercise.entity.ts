@@ -9,7 +9,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Machine, MuscleGroupEnum } from '../../machines/entities/machine.entity';
+import { Machine } from '../../machines/entities/machine.entity';
 
 export enum ExerciseTypeEnum {
   STRENGTH = 'STRENGTH',
@@ -37,14 +37,14 @@ export class Exercise {
   @Column('text')
   name!: string;
 
-  @Column('enum', { enum: ExerciseTypeEnum, default: ExerciseTypeEnum.STRENGTH })
+  @Column('enum', { name: 'exercise_type', enum: ExerciseTypeEnum, default: ExerciseTypeEnum.STRENGTH })
   type!: ExerciseTypeEnum;
 
   @Column('enum', { enum: DifficultyEnum, default: DifficultyEnum.BEGINNER })
   difficulty!: DifficultyEnum;
 
-  @Column('enum', { enum: MuscleGroupEnum, name: 'muscle_group', default: MuscleGroupEnum.OTHER })
-  muscleGroup!: MuscleGroupEnum;
+  @Column('uuid', { name: 'primary_muscle_id', nullable: true })
+  primaryMuscleId!: string | null;
 
   @Column('text', { nullable: true })
   description!: string | null;

@@ -4,13 +4,17 @@ import {
   IsEnum,
   IsOptional,
   IsString,
-  IsUUID,
+  Matches,
   IsDateString,
+  IsInt,
+  Min,
 } from 'class-validator';
-import { MachineTypeEnum, MuscleGroupEnum } from '../entities/machine.entity';
+import { MachineTypeEnum } from '../entities/machine.entity';
 
 export class CreateMachineDto {
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID format',
+  })
   gymId!: string;
 
   @IsString()
@@ -18,9 +22,6 @@ export class CreateMachineDto {
 
   @IsEnum(MachineTypeEnum)
   type!: MachineTypeEnum;
-
-  @IsEnum(MuscleGroupEnum)
-  muscleGroup!: MuscleGroupEnum;
 
   @IsOptional()
   @IsString()
@@ -39,16 +40,8 @@ export class CreateMachineDto {
   imageUrl?: string;
 
   @IsOptional()
-  @IsUUID()
-  imageFileId?: string;
-
-  @IsOptional()
   @IsBoolean()
-  isActive?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  inService?: boolean;
+  isOperational?: boolean;
 
   // Extras
   @IsOptional()
@@ -57,13 +50,22 @@ export class CreateMachineDto {
 
   @IsOptional()
   @IsDateString()
-  purchaseDate?: string; // yyyy-mm-dd
+  purchaseDate?: string;
 
   @IsOptional()
-  @IsString()
-  warrantyInfo?: string;
+  @IsInt()
+  @Min(0)
+  warrantyMonths?: number;
+
+  @IsOptional()
+  @IsDateString()
+  lastMaintenance?: string;
 
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsString()
+  usageNotes?: string;
 }

@@ -1,9 +1,6 @@
-import { IsDateString, IsUUID } from 'class-validator';
+import { IsDateString } from 'class-validator';
 
 export class ScheduleCampaignDto {
-  @IsUUID()
-  gymId!: string;
-
   @IsDateString()
   scheduledAt!: string; // ISO
 }

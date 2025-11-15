@@ -2,15 +2,16 @@ import { Type } from 'class-transformer';
 import { IsOptional, IsUUID, IsInt, Min, IsBooleanString } from 'class-validator';
 
 export class QueryAssignmentsDto {
-  @IsUUID()
-  gymId!: string;
+  @IsOptional()
+  @IsUUID('all')
+  gymId?: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   routineId?: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   clientId?: string;
 
   @IsOptional()

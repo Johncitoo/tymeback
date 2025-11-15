@@ -1,9 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, Max, Min, Matches } from 'class-validator';
 
 export class RecentPaymentsDto {
-  @IsUUID()
-  gymId!: string;
+  @IsOptional()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID format'
+  })
+  gymId?: string;
 
   @IsOptional()
   @Type(() => Number)

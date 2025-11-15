@@ -10,6 +10,7 @@ import {
   IsUUID,
   MinLength,
   ValidateNested,
+  Matches,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { GenderEnum, RoleEnum, SexEnum } from '../../users/entities/user.entity';
@@ -68,11 +69,15 @@ export class UpdateClientDto {
 
   // Client fields
   @IsOptional()
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'trainerId must be a valid UUID'
+  })
   trainerId?: string | null;
 
   @IsOptional()
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'nutritionistId must be a valid UUID'
+  })
   nutritionistId?: string | null;
 
   @IsOptional()

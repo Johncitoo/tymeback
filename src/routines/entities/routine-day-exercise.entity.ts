@@ -34,11 +34,11 @@ export class RoutineDayExercise {
   @JoinColumn({ name: 'routine_id' })
   routine!: Routine;
 
-  @Column('uuid', { name: 'day_id' })
+  @Column('uuid', { name: 'routine_day_id' })
   dayId!: string;
 
   @ManyToOne(() => RoutineDay, (d) => d.exercises, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'day_id' })
+  @JoinColumn({ name: 'routine_day_id' })
   day!: RoutineDay;
 
   @Column('uuid', { name: 'exercise_id' })

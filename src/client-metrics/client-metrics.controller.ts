@@ -3,7 +3,7 @@ import { ClientMetricsService } from './client-metrics.service';
 import { CreateClientMetricDto } from './dto/create-client-metric.dto';
 import { QueryClientMetricsDto } from './dto/query-client-metrics.dto';
 
-@Controller('api/client-metrics')
+@Controller('client-metrics')
 export class ClientMetricsController {
   constructor(private readonly service: ClientMetricsService) {}
 

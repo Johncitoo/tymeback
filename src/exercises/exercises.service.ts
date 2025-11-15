@@ -80,7 +80,7 @@ export class ExercisesService {
       name: dto.name,
       type: dto.type ?? undefined,
       difficulty: dto.difficulty ?? undefined,
-      muscleGroup: dto.muscleGroup,
+      primaryMuscleId: dto.primaryMuscleId ?? null,
       description: dto.description ?? null,
       imageUrl: dto.imageUrl ?? null,
       videoUrl: dto.videoUrl ?? null,
@@ -97,7 +97,7 @@ export class ExercisesService {
 
     if (q.search) where.name = ILike(`%${q.search}%`);
     if (q.type) where.type = q.type;
-    if (q.muscleGroup) where.muscleGroup = q.muscleGroup;
+    if (q.primaryMuscleId) where.primaryMuscleId = q.primaryMuscleId;
     if (q.difficulty) where.difficulty = q.difficulty;
     if (q.machineId) where.machineId = q.machineId;
     if (typeof q.isActive === 'string') where.isActive = q.isActive === 'true';
@@ -130,7 +130,7 @@ export class ExercisesService {
       name: dto.name ?? e.name,
       type: dto.type ?? e.type,
       difficulty: dto.difficulty ?? e.difficulty,
-      muscleGroup: dto.muscleGroup ?? e.muscleGroup,
+      primaryMuscleId: dto.primaryMuscleId !== undefined ? dto.primaryMuscleId : e.primaryMuscleId,
       description: dto.description ?? e.description,
       imageUrl: dto.imageUrl ?? e.imageUrl,
       videoUrl: dto.videoUrl ?? e.videoUrl,

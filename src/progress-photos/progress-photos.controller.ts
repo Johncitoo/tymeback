@@ -3,7 +3,7 @@ import { ProgressPhotosService } from './progress-photos.service';
 import { CreateProgressPhotoDto } from './dto/create-progress-photo.dto';
 import { QueryProgressPhotosDto } from './dto/query-progress-photos.dto';
 
-@Controller('api/progress-photos')
+@Controller('progress-photos')
 export class ProgressPhotosController {
   constructor(private readonly service: ProgressPhotosService) {}
 

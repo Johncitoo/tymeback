@@ -10,7 +10,7 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, type JwtUser } from '../auth/current-user.decorator';
 import { RoleEnum } from '../users/entities/user.entity';
 
-@Controller('api/memberships')
+@Controller('memberships')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class MembershipsController {
   constructor(private readonly service: MembershipsService) {}

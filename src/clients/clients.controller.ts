@@ -16,7 +16,7 @@ import { UpdateClientDto } from './dto/update-client.dto';
 import { QueryClientsDto } from './dto/query-clients.dto';
 import { EmergencyContactDto } from './dto/emergency-contact.dto';
 
-@Controller('api/clients')
+@Controller('clients')
 export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}
 

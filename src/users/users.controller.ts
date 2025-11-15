@@ -13,7 +13,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtUser } from '../auth/current-user.decorator';
 import { RoleEnum } from './entities/user.entity';
 
-@Controller('api/users')
+@Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}

@@ -4,10 +4,11 @@ import {
   IsEnum,
   IsOptional,
   IsString,
-  IsUUID,
   IsDateString,
+  IsInt,
+  Min,
 } from 'class-validator';
-import { MachineTypeEnum, MuscleGroupEnum } from '../entities/machine.entity';
+import { MachineTypeEnum } from '../entities/machine.entity';
 
 export class UpdateMachineDto {
   @IsOptional()
@@ -17,10 +18,6 @@ export class UpdateMachineDto {
   @IsOptional()
   @IsEnum(MachineTypeEnum)
   type?: MachineTypeEnum;
-
-  @IsOptional()
-  @IsEnum(MuscleGroupEnum)
-  muscleGroup?: MuscleGroupEnum;
 
   @IsOptional()
   @IsString()
@@ -39,16 +36,8 @@ export class UpdateMachineDto {
   imageUrl?: string;
 
   @IsOptional()
-  @IsUUID()
-  imageFileId?: string;
-
-  @IsOptional()
   @IsBoolean()
-  isActive?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  inService?: boolean;
+  isOperational?: boolean;
 
   // Extras
   @IsOptional()
@@ -60,10 +49,19 @@ export class UpdateMachineDto {
   purchaseDate?: string;
 
   @IsOptional()
-  @IsString()
-  warrantyInfo?: string;
+  @IsInt()
+  @Min(0)
+  warrantyMonths?: number;
+
+  @IsOptional()
+  @IsDateString()
+  lastMaintenance?: string;
 
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsString()
+  usageNotes?: string;
 }

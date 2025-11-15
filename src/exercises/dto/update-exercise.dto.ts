@@ -7,7 +7,6 @@ import {
   IsUUID,
 } from 'class-validator';
 import { ExerciseTypeEnum, DifficultyEnum } from '../entities/exercise.entity';
-import { MuscleGroupEnum } from '../../machines/entities/machine.entity';
 
 export class UpdateExerciseDto {
   @IsOptional()
@@ -23,8 +22,8 @@ export class UpdateExerciseDto {
   difficulty?: DifficultyEnum;
 
   @IsOptional()
-  @IsEnum(MuscleGroupEnum)
-  muscleGroup?: MuscleGroupEnum;
+  @IsUUID()
+  primaryMuscleId?: string | null;
 
   @IsOptional()
   @IsString()

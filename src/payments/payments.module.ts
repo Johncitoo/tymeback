@@ -7,11 +7,13 @@ import { PaymentsController } from './payments.controller';
 import { User } from '../users/entities/user.entity';
 import { Plan } from '../plans/entities/plan.entity';
 import { MembershipsModule } from '../memberships/memberships.module';
+import { CommunicationsModule } from '../communications/communications.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, PaymentItem, User, Plan]),
     MembershipsModule, // para crear membresías tras pagar
+    CommunicationsModule,
   ],
   providers: [PaymentsService],
   controllers: [PaymentsController],

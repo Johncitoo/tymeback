@@ -1,7 +1,10 @@
-import { IsUUID, IsString, IsOptional, IsInt, Min, IsBoolean } from 'class-validator';
+import { Matches, IsString, IsOptional, IsInt, Min, IsBoolean } from 'class-validator';
 
 export class CreatePlanDto {
-  @IsUUID() gymId!: string;
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID format',
+  })
+  gymId!: string;
   @IsString() name!: string;
   @IsOptional() @IsString() description?: string;
 

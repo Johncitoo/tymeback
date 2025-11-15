@@ -17,9 +17,10 @@ export class PaymentItem {
   @Column('uuid', { name: 'payment_id' })
   paymentId!: string;
 
-  @ManyToOne(() => Payment, (p) => p.items, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'payment_id' })
-  payment!: Payment;
+  // TODO: Restaurar relación cuando Payment.items se reimplemente
+  // @ManyToOne(() => Payment, (p) => p.items, { onDelete: 'CASCADE' })
+  // @JoinColumn({ name: 'payment_id' })
+  // payment!: Payment;
 
   @Column('uuid', { name: 'client_id' })
   clientId!: string;
@@ -33,11 +34,12 @@ export class PaymentItem {
   @Column('int', { name: 'unit_price_clp' })
   unitPriceClp!: number;
 
-  // descuento % aplicado a este ítem (0-100). Para UI actual puede ir en 0.
-  @Column('int', { name: 'discount_percent', default: 0 })
-  discountPercent!: number;
+  @Column('int', { name: 'discount_clp', default: 0 })
+  discountClp!: number;
 
-  // total final del ítem (con descuento)
-  @Column('int', { name: 'total_clp' })
-  totalClp!: number;
+  @Column('int', { name: 'final_amount_clp' })
+  finalAmountClp!: number;
+
+  @Column('uuid', { name: 'promotion_id', nullable: true })
+  promotionId!: string | null;
 }

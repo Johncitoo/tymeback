@@ -4,7 +4,7 @@ import { StartSessionDto } from './dto/start-session.dto';
 import { ToggleEntryDto } from './dto/toggle-entry.dto';
 import { QuerySessionsDto } from './dto/query-sessions.dto';
 
-@Controller('api/workouts')
+@Controller('workouts')
 export class WorkoutsController {
   constructor(private readonly service: WorkoutsService) {}
 

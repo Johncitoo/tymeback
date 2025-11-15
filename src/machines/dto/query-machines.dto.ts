@@ -4,35 +4,29 @@ import {
   IsEnum,
   IsOptional,
   IsString,
-  IsUUID,
+  Matches,
   IsInt,
   Min,
 } from 'class-validator';
-import { MachineTypeEnum, MuscleGroupEnum } from '../entities/machine.entity';
+import { MachineTypeEnum } from '../entities/machine.entity';
 
 export class QueryMachinesDto {
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID format',
+  })
   gymId!: string;
 
   @IsOptional()
   @IsString()
-  search?: string; // nombre (ILIKE)
+  search?: string;
 
   @IsOptional()
   @IsEnum(MachineTypeEnum)
   type?: MachineTypeEnum;
 
   @IsOptional()
-  @IsEnum(MuscleGroupEnum)
-  muscleGroup?: MuscleGroupEnum;
-
-  @IsOptional()
   @IsBooleanString()
-  inService?: string;
-
-  @IsOptional()
-  @IsBooleanString()
-  isActive?: string;
+  isOperational?: string;
 
   @IsOptional()
   @Type(() => Number)

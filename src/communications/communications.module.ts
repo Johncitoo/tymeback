@@ -16,8 +16,6 @@ import { Plan } from '../plans/entities/plan.entity';
 
 @Module({
   imports: [
-    // Si ya usaste ScheduleModule en AppModule, puedes quitar este forRoot()
-    ScheduleModule.forRoot(),
     TypeOrmModule.forFeature([
       EmailTemplate,
       EmailCampaign,
@@ -33,6 +31,6 @@ import { Plan } from '../plans/entities/plan.entity';
   ],
   controllers: [CommunicationsController],
   providers: [CommunicationsService],
-  exports: [TypeOrmModule, CommunicationsService],
+  exports: [CommunicationsService, TypeOrmModule],
 })
 export class CommunicationsModule {}

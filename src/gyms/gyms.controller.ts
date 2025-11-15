@@ -14,7 +14,7 @@ import { CreateGymDto } from './dto/create-gym.dto';
 import { UpdateGymDto } from './dto/update-gym.dto';
 import { QueryGymsDto } from './dto/query-gyms.dto';
 
-@Controller('api/gyms')
+@Controller('gyms')
 export class GymsController {
   constructor(private readonly gymsService: GymsService) {}
 

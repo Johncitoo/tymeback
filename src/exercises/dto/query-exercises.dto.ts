@@ -4,15 +4,16 @@ import {
   IsEnum,
   IsOptional,
   IsString,
-  IsUUID,
+  Matches,
   IsInt,
   Min,
 } from 'class-validator';
 import { ExerciseTypeEnum, DifficultyEnum } from '../entities/exercise.entity';
-import { MuscleGroupEnum } from '../../machines/entities/machine.entity';
 
 export class QueryExercisesDto {
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID format',
+  })
   gymId!: string;
 
   @IsOptional()
@@ -24,15 +25,19 @@ export class QueryExercisesDto {
   type?: ExerciseTypeEnum;
 
   @IsOptional()
-  @IsEnum(MuscleGroupEnum)
-  muscleGroup?: MuscleGroupEnum;
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'primaryMuscleId must be a valid UUID format',
+  })
+  primaryMuscleId?: string;
 
   @IsOptional()
   @IsEnum(DifficultyEnum)
   difficulty?: DifficultyEnum;
 
   @IsOptional()
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'machineId must be a valid UUID format',
+  })
   machineId?: string;
 
   @IsOptional()

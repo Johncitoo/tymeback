@@ -1,18 +1,22 @@
-import { IsArray, IsOptional, IsUUID } from 'class-validator';
+import { IsArray, IsOptional, IsUUID, ArrayMinSize } from 'class-validator';
 
 /**
  * Crea asignaciones 1..N para distintos clientes y congela snapshot.
  */
 export class AssignRoutineDto {
-  @IsUUID()
-  gymId!: string;
+  @IsOptional()
+  @IsUUID('all')
+  gymId?: string;
 
-  @IsUUID()
+  @IsUUID('all')
   routineId!: string;
 
-  @IsUUID()
-  assignedByUserId!: string;
+  @IsOptional()
+  @IsUUID('all')
+  assignedByUserId?: string;
 
   @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('all', { each: true })
   clientIds!: string[];
 }

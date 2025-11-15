@@ -5,7 +5,7 @@ import { UpdatePrDto } from './dto/update-pr.dto';
 import { QueryPrsDto } from './dto/query-prs.dto';
 import { SummaryLatestDto } from './dto/summary-latest.dto';
 
-@Controller('api/pr-records')
+@Controller('pr-records')
 export class PrRecordsController {
   constructor(private readonly service: PrRecordsService) {}
 

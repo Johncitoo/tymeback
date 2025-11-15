@@ -4,7 +4,7 @@ import { CreateInbodyScanDto } from './dto/create-inbody-scan.dto';
 import { UpdateInbodyScanDto } from './dto/update-inbody-scan.dto';
 import { QueryInbodyScansDto } from './dto/query-inbody-scans.dto';
 
-@Controller('api/nutrition/inbody-scans')
+@Controller('nutrition/inbody-scans')
 export class InbodyScansController {
   constructor(private readonly service: InbodyScansService) {}
 

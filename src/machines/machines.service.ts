@@ -5,14 +5,14 @@ import {
 } from '@nestjs/common';
   import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
-import { Machine, MachineTypeEnum, MuscleGroupEnum } from './entities/machine.entity';
+import { Machine, MachineTypeEnum } from './entities/machine.entity';
 import { MachineMaintenance } from './entities/machine-maintenance.entity';
 import { CreateMachineDto } from './dto/create-machine.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
 import { QueryMachinesDto } from './dto/query-machines.dto';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
-import { SesMailerService } from '../communications/mailer/ses-mailer.service';
+import { ResendMailerService } from '../communications/mailer/resend-mailer.service';
 
 @Injectable()
 export class MachinesService {
@@ -20,7 +20,7 @@ export class MachinesService {
     @InjectRepository(Machine) private readonly repo: Repository<Machine>,
     @InjectRepository(MachineMaintenance) private readonly maintRepo: Repository<MachineMaintenance>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
-    private readonly mailer: SesMailerService,
+    private readonly mailer: ResendMailerService,
   ) {}
 
   // --------- helpers ---------
@@ -36,7 +36,7 @@ export class MachinesService {
     const subject = `Máquina fuera de servicio: ${machine.name}`;
     const html = `
       <p>Hola,</p>
-      <p>La máquina <strong>${machine.name}</strong> (grupo muscular: ${machine.muscleGroup}) fue marcada como <strong>FUERA DE SERVICIO</strong>.</p>
+      <p>La máquina <strong>${machine.name}</strong> fue marcada como <strong>FUERA DE SERVICIO</strong>.</p>
       ${machine.location ? `<p>Ubicación: ${machine.location}</p>` : ''}
       ${machine.safetyNotes ? `<p><em>Notas de seguridad:</em> ${machine.safetyNotes}</p>` : ''}
       <p>Por favor, revise y agende mantenimiento.</p>
@@ -56,18 +56,16 @@ export class MachinesService {
       gymId: dto.gymId,
       name: dto.name,
       type: dto.type ?? MachineTypeEnum.STRENGTH,
-      muscleGroup: dto.muscleGroup ?? MuscleGroupEnum.OTHER,
       description: dto.description ?? null,
       specs: dto.specs ?? null,
       safetyNotes: dto.safetyNotes ?? null,
       imageUrl: dto.imageUrl ?? null,
-      imageFileId: dto.imageFileId ?? null,
-      isActive: dto.isActive ?? true,
-      inService: dto.inService ?? true,
+      isOperational: dto.isOperational ?? true,
       serialNumber: dto.serialNumber ?? null,
       purchaseDate: dto.purchaseDate ?? null,
-      warrantyInfo: dto.warrantyInfo ?? null,
+      warrantyMonths: dto.warrantyMonths ?? null,
       location: dto.location ?? null,
+      usageNotes: dto.usageNotes ?? null,
     });
     return this.repo.save(row);
   }
@@ -78,9 +76,7 @@ export class MachinesService {
 
     if (q.search) where.name = ILike(`%${q.search}%`);
     if (q.type) where.type = q.type;
-    if (q.muscleGroup) where.muscleGroup = q.muscleGroup;
-    if (typeof q.inService === 'string') where.inService = q.inService === 'true';
-    if (typeof q.isActive === 'string') where.isActive = q.isActive === 'true';
+    if (typeof q.isOperational === 'string') where.isOperational = q.isOperational === 'true';
 
     const [data, total] = await this.repo.findAndCount({
       where,
@@ -100,29 +96,27 @@ export class MachinesService {
 
   async update(id: string, gymId: string, dto: UpdateMachineDto) {
     const m = await this.findOne(id, gymId);
-    const wasInService = m.inService;
+    const wasOperational = m.isOperational;
 
     Object.assign(m, {
       name: dto.name ?? m.name,
       type: dto.type ?? m.type,
-      muscleGroup: dto.muscleGroup ?? m.muscleGroup,
       description: dto.description ?? m.description,
       specs: dto.specs ?? m.specs,
       safetyNotes: dto.safetyNotes ?? m.safetyNotes,
       imageUrl: dto.imageUrl ?? m.imageUrl,
-      imageFileId: dto.imageFileId ?? m.imageFileId,
-      isActive: typeof dto.isActive === 'boolean' ? dto.isActive : m.isActive,
-      inService: typeof dto.inService === 'boolean' ? dto.inService : m.inService,
+      isOperational: typeof dto.isOperational === 'boolean' ? dto.isOperational : m.isOperational,
       serialNumber: dto.serialNumber ?? m.serialNumber,
       purchaseDate: dto.purchaseDate ?? m.purchaseDate,
-      warrantyInfo: dto.warrantyInfo ?? m.warrantyInfo,
+      warrantyMonths: dto.warrantyMonths ?? m.warrantyMonths,
       location: dto.location ?? m.location,
+      usageNotes: dto.usageNotes ?? m.usageNotes,
     });
 
     const saved = await this.repo.save(m);
 
     // Si pasó a fuera de servicio ahora → notificar
-    if (wasInService && saved.inService === false) {
+    if (wasOperational && saved.isOperational === false) {
       await this.notifyAdminsMachineOOS(gymId, saved);
     }
 
@@ -131,8 +125,8 @@ export class MachinesService {
 
   async setOutOfService(id: string, gymId: string) {
     const m = await this.findOne(id, gymId);
-    if (!m.inService) return m;
-    m.inService = false;
+    if (!m.isOperational) return m;
+    m.isOperational = false;
     const saved = await this.repo.save(m);
     await this.notifyAdminsMachineOOS(gymId, saved);
     return saved;
@@ -140,8 +134,8 @@ export class MachinesService {
 
   async setInService(id: string, gymId: string) {
     const m = await this.findOne(id, gymId);
-    if (m.inService) return m;
-    m.inService = true;
+    if (m.isOperational) return m;
+    m.isOperational = true;
     return this.repo.save(m);
   }
 

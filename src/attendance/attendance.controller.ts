@@ -4,7 +4,7 @@ import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
 import { QueryAttendanceDto } from './dto/query-attendance.dto';
 
-@Controller('api/attendance')
+@Controller('attendance')
 export class AttendanceController {
   constructor(private readonly service: AttendanceService) {}
 
@@ -21,5 +21,13 @@ export class AttendanceController {
   @Get()
   list(@Query() q: QueryAttendanceDto) {
     return this.service.list(q);
+  }
+
+  @Get('active')
+  async activeEntries(@Query('gymId') gymId?: string) {
+    const query: QueryAttendanceDto = { openOnly: 'true' };
+    if (gymId) query.gymId = gymId;
+    const result = await this.service.list(query);
+    return result.data; // Frontend espera array, no { data, total }
   }
 }

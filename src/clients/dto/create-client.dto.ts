@@ -9,26 +9,32 @@ import {
   MaxLength,
   ValidateIf,
   IsDateString,
+  Matches,
 } from 'class-validator';
 import { NormalizeRut } from '../../common/transformers/normalize-rut.transformer';
 import { IsRut } from '../../common/validators/is-rut.decorator';
 import { Transform } from 'class-transformer';
 
 export enum GenderIdentityEnum {
-  FEMALE = 'female',
-  MALE = 'male',
-  NON_BINARY = 'non_binary',
-  OTHER = 'other',
+  FEMALE = 'FEMALE',
+  MALE = 'MALE',
+  NON_BINARY = 'NON_BINARY',
+  OTHER = 'OTHER',
+  PREFER_NOT = 'PREFER_NOT',
 }
 
 export enum BiologicalSexEnum {
-  FEMALE = 'female',
-  MALE = 'male',
+  FEMALE = 'FEMALE',
+  MALE = 'MALE',
+  INTERSEX = 'INTERSEX',
+  UNKNOWN = 'UNKNOWN',
 }
 
 export class CreateClientDto {
   @IsNotEmpty()
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'gymId must be a valid UUID'
+  })
   gymId!: string;
 
   @IsNotEmpty()
@@ -70,14 +76,16 @@ export class CreateClientDto {
   // Si te llega "YYYY-MM-DD", deja tal cual; si llega ISO, puedes transformarlo en service.
   birthDate?: string;
 
-  // “Género” (identidad)
+  // "Género" (identidad)
   @IsOptional()
   @IsEnum(GenderIdentityEnum)
+  @Transform(({ value }) => value ? value.toUpperCase() : value)
   gender?: GenderIdentityEnum;
 
-  // “Sexo biológico”
+  // "Sexo biológico"
   @IsOptional()
   @IsEnum(BiologicalSexEnum)
+  @Transform(({ value }) => value ? value.toUpperCase() : value)
   biologicalSex?: BiologicalSexEnum;
 
   @IsOptional()

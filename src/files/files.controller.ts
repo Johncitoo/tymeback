@@ -3,10 +3,42 @@ import { FilesService } from './files.service';
 import { CreateUploadDto } from './dto/create-upload.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { QueryFilesDto } from './dto/query-files.dto';
+import { GcsService } from './storage/gcs.service';
 
 @Controller('files')
 export class FilesController {
-  constructor(private readonly files: FilesService) {}
+  constructor(
+    private readonly files: FilesService,
+    private readonly gcs: GcsService,
+  ) {}
+
+  // Health check para GCS
+  @Get('health')
+  async healthCheck() {
+    try {
+      // Intenta generar una URL firmada de prueba
+      const testUrl = await this.gcs.getSignedUploadUrl({
+        bucket: 'test-bucket',
+        key: 'test-key',
+        contentType: 'text/plain',
+        expiresIn: 60,
+      });
+      return {
+        status: 'ok',
+        service: 'Google Cloud Storage',
+        configured: true,
+        message: 'GCS está configurado correctamente',
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        service: 'Google Cloud Storage',
+        configured: false,
+        message: error.message,
+        hint: 'Verifica que GOOGLE_APPLICATION_CREDENTIALS esté configurado correctamente',
+      };
+    }
+  }
 
   // 1) Presign (PUT) para subir directo a GCS
   @Post('presign')
