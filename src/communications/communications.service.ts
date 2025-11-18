@@ -600,4 +600,60 @@ export class CommunicationsService {
       throw e;
     }
   }
+
+  // ---------- Email Logs ----------
+  async getEmailLogs(
+    gymId: number,
+    filters?: {
+      status?: 'sent' | 'failed' | 'pending';
+      startDate?: string;
+      endDate?: string;
+      search?: string;
+    },
+  ) {
+    const query = this.logRepo
+      .createQueryBuilder('log')
+      .where('log.gymId = :gymId', { gymId })
+      .orderBy('log.createdAt', 'DESC');
+
+    if (filters?.status) {
+      query.andWhere('log.status = :status', { status: filters.status });
+    }
+
+    if (filters?.startDate) {
+      query.andWhere('log.createdAt >= :startDate', { startDate: new Date(filters.startDate) });
+    }
+
+    if (filters?.endDate) {
+      query.andWhere('log.createdAt <= :endDate', { endDate: new Date(filters.endDate) });
+    }
+
+    if (filters?.search) {
+      query.andWhere(
+        '(log.toEmail ILIKE :search OR log.subject ILIKE :search OR log.error ILIKE :search)',
+        { search: `%${filters.search}%` },
+      );
+    }
+
+    return query.getMany();
+  }
+
+  async getEmailLogStats(gymId: number) {
+    const logs = await this.logRepo.find({ where: { gymId } });
+    
+    return {
+      total: logs.length,
+      sent: logs.filter(l => l.status === EmailLogStatusEnum.SENT).length,
+      failed: logs.filter(l => l.status === EmailLogStatusEnum.FAILED).length,
+      pending: logs.filter(l => l.status === EmailLogStatusEnum.PENDING).length,
+    };
+  }
+
+  async getEmailLogById(gymId: number, id: number) {
+    const log = await this.logRepo.findOne({ where: { id, gymId } });
+    if (!log) {
+      throw new NotFoundException(`Email log ${id} not found`);
+    }
+    return log;
+  }
 }

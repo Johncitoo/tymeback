@@ -96,4 +96,26 @@ export class CommunicationsController {
   listCampaigns(@CurrentUser() user: any, @Query() q: QueryCampaignsDto) {
     return this.service.listCampaigns(user.gymId, q);
   }
+
+  // Email Logs
+  @Get('email-logs')
+  async getEmailLogs(
+    @CurrentUser() user: any,
+    @Query('status') status?: 'sent' | 'failed' | 'pending',
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.service.getEmailLogs(user.gymId, { status, startDate, endDate, search });
+  }
+
+  @Get('email-logs/stats')
+  async getEmailLogStats(@CurrentUser() user: any) {
+    return this.service.getEmailLogStats(user.gymId);
+  }
+
+  @Get('email-logs/:id')
+  async getEmailLogById(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.service.getEmailLogById(user.gymId, +id);
+  }
 }
