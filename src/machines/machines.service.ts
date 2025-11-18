@@ -12,7 +12,7 @@ import { UpdateMachineDto } from './dto/update-machine.dto';
 import { QueryMachinesDto } from './dto/query-machines.dto';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
-import { ResendMailerService } from '../communications/mailer/resend-mailer.service';
+import { MailerService } from '../communications/mailer/mailer.service';
 
 @Injectable()
 export class MachinesService {
@@ -20,7 +20,7 @@ export class MachinesService {
     @InjectRepository(Machine) private readonly repo: Repository<Machine>,
     @InjectRepository(MachineMaintenance) private readonly maintRepo: Repository<MachineMaintenance>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
-    private readonly mailer: ResendMailerService,
+    private readonly mailer: MailerService,
   ) {}
 
   // --------- helpers ---------

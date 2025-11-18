@@ -19,7 +19,7 @@ import { ScheduleCampaignDto } from './dto/schedule-campaign.dto';
 import { QueryTemplatesDto } from './dto/query-templates.dto';
 import { QueryCampaignsDto } from './dto/query-campaigns.dto';
 import { SendTestDto } from './dto/send-test.dto';
-import { ResendMailerService } from './mailer/resend-mailer.service';
+import { MailerService } from './mailer/mailer.service';
 import { User, RoleEnum } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -36,7 +36,7 @@ export class CommunicationsService {
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
     @InjectRepository(Membership) private readonly memRepo: Repository<Membership>,
     @InjectRepository(Plan) private readonly plansRepo: Repository<Plan>,
-    private readonly mailer: ResendMailerService,
+    private readonly mailer: MailerService,
   ) {}
 
   // ---------- helpers ----------

@@ -10,46 +10,36 @@ import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { ScheduleCampaignDto } from './dto/schedule-campaign.dto';
 import { QueryCampaignsDto } from './dto/query-campaigns.dto';
-import { ResendMailerService } from './mailer/resend-mailer.service';
+import { MailerService } from './mailer/mailer.service';
 
 @Controller('communications')
 @UseGuards(JwtAuthGuard)
 export class CommunicationsController {
   constructor(
     private readonly service: CommunicationsService,
-    private readonly mailer: ResendMailerService,
+    private readonly mailer: MailerService,
   ) {}
 
   // Health check para servicio de email
   @Get('health')
   async healthCheck() {
     try {
-      const result = await this.mailer.healthCheck();
-      const provider = process.env.EMAIL_PROVIDER || 'resend';
-      const serviceName = provider === 'gmail' ? 'Gmail SMTP' : 'Resend';
+      const result = await this.mailer.sendTest(process.env.EMAIL_USER || 'test@example.com');
       
       return {
-        status: result.configured ? 'ok' : 'error',
-        service: serviceName,
-        provider: provider,
-        configured: result.configured,
-        message: result.message,
+        status: 'ok',
+        service: 'Gmail SMTP',
+        configured: true,
+        message: 'Email service is working',
         dryRun: process.env.EMAIL_DRY_RUN === 'true',
       };
     } catch (error) {
-      const provider = process.env.EMAIL_PROVIDER || 'resend';
-      const serviceName = provider === 'gmail' ? 'Gmail SMTP' : 'Resend';
-      const hint = provider === 'gmail' 
-        ? 'Verifica que EMAIL_USER y EMAIL_PASSWORD estén configurados correctamente'
-        : 'Verifica que RESEND_API_KEY esté configurado correctamente en .env';
-      
       return {
         status: 'error',
-        service: serviceName,
-        provider: provider,
+        service: 'Gmail SMTP',
         configured: false,
         message: error.message,
-        hint: hint,
+        hint: 'Verifica que EMAIL_USER y EMAIL_PASSWORD estén configurados correctamente',
       };
     }
   }
