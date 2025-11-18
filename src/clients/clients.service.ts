@@ -220,4 +220,27 @@ export class ClientsService {
     }
     return this.contactsRepo.find({ where: { clientId: userId } });
   }
+
+  // TEMPORAL: Método para eliminar todos los clientes (SOLO DESARROLLO)
+  async deleteAllClients(gymId: string) {
+    if (!gymId) {
+      throw new ConflictException('gymId is required');
+    }
+
+    try {
+      // Eliminar todos los usuarios con role CLIENT del gym especificado
+      const result = await this.usersRepo.delete({ 
+        role: RoleEnum.CLIENT,
+        gymId 
+      });
+
+      return { 
+        message: 'All clients deleted successfully',
+        deleted: result.affected || 0
+      };
+    } catch (error) {
+      console.error('Error deleting all clients:', error);
+      throw error;
+    }
+  }
 }

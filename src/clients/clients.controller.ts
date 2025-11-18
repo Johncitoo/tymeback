@@ -25,6 +25,12 @@ export class ClientsController {
     return this.clientsService.create(dto);
   }
 
+  // TEMPORAL: Endpoint para eliminar todos los clientes (SOLO DESARROLLO)
+  @Delete('delete-all-clients-temp')
+  async deleteAllClients(@Query('gymId') gymId: string) {
+    return this.clientsService.deleteAllClients(gymId);
+  }
+
   @Get()
   findAll(@Query() qry: QueryClientsDto) {
     return this.clientsService.findAll(qry);
