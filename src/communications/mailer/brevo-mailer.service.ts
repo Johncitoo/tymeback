@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as brevo from '@getbrevo/brevo';
+const brevo = require('@getbrevo/brevo');
 
 /**
  * Servicio de email usando Brevo API (HTTP)
@@ -9,7 +9,7 @@ import * as brevo from '@getbrevo/brevo';
 @Injectable()
 export class BrevoMailerService {
   private readonly logger = new Logger(BrevoMailerService.name);
-  private readonly apiInstance: brevo.TransactionalEmailsApi;
+  private readonly apiInstance: any;
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly dryRun: boolean;
@@ -77,16 +77,16 @@ export class BrevoMailerService {
       console.log('📬 Calling Brevo API...');
       const result = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
       
-      const messageId = result.body?.messageId || result.response?.body?.messageId || 'unknown-message-id';
+      const messageId = result?.messageId || result?.response?.messageId || 'unknown-message-id';
       console.log('✅ Email sent successfully via Brevo API:', messageId);
       this.logger.log(`✅ Email enviado: ${messageId} → ${to}`);
       
       return String(messageId);
     } catch (error: any) {
       console.error('❌ Error in BrevoMailerService.send:', error);
-      console.error('❌ Error response:', error.response?.body || error.message);
+      console.error('❌ Error response:', error.response?.text || error.message);
       this.logger.error(`❌ Error al enviar email a ${to}:`, error.message);
-      throw new Error(error.response?.body?.message || error.message || 'Error sending email');
+      throw new Error(error.response?.text || error.message || 'Error sending email');
     }
   }
 
@@ -105,7 +105,7 @@ export class BrevoMailerService {
     html: string,
     text?: string,
   ): Promise<Array<{ to: string; messageId: string | null; status: string; error: string | null }>> {
-    const results = [];
+    const results: Array<{ to: string; messageId: string | null; status: string; error: string | null }> = [];
     
     for (const to of toList) {
       try {
