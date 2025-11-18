@@ -12,16 +12,15 @@ export class GmailMailerService {
   private readonly dryRun: boolean;
 
   constructor(private readonly config: ConfigService) {
-    // Intentar ambos nombres de variables para compatibilidad
-    const user = this.config.get<string>('EMAIL_USER') || this.config.get<string>('GMAIL_USER') || '';
-    const password = this.config.get<string>('EMAIL_PASSWORD') || this.config.get<string>('GMAIL_APP_PASSWORD') || '';
-    const host = this.config.get<string>('EMAIL_HOST') || 'smtp.gmail.com';
-    // Usar puerto 465 con SSL por defecto (mejor compatibilidad con Railway)
-    const port = parseInt(this.config.get<string>('EMAIL_PORT') || '465', 10);
-    const secure = this.config.get<string>('EMAIL_SECURE') !== 'false'; // true por defecto
+    // Configuración para Brevo (Sendinblue) SMTP
+    const user = this.config.get<string>('EMAIL_USER') || this.config.get<string>('BREVO_SMTP_USER') || '';
+    const password = this.config.get<string>('EMAIL_PASSWORD') || this.config.get<string>('BREVO_SMTP_KEY') || '';
+    const host = this.config.get<string>('EMAIL_HOST') || 'smtp-relay.brevo.com';
+    const port = parseInt(this.config.get<string>('EMAIL_PORT') || '587', 10);
+    const secure = false; // Brevo usa STARTTLS en puerto 587
 
-    console.log('📧 Gmail SMTP Configuration:', {
-      user: user ? `${user.substring(0, 3)}***` : 'NOT SET',
+    console.log('📧 Brevo SMTP Configuration:', {
+      user: user ? `${user.substring(0, 10)}***` : 'NOT SET',
       password: password ? '***SET***' : 'NOT SET',
       host,
       port,
@@ -29,42 +28,39 @@ export class GmailMailerService {
     });
 
     if (!user || !password) {
-      this.logger.error('❌ EMAIL_USER/GMAIL_USER o EMAIL_PASSWORD/GMAIL_APP_PASSWORD no configurados');
+      this.logger.error('❌ EMAIL_USER/BREVO_SMTP_USER o EMAIL_PASSWORD/BREVO_SMTP_KEY no configurados');
       this.logger.error('❌ El servicio de email NO funcionará hasta que se configuren');
     }
 
     this.transporter = nodemailer.createTransport({
       host,
       port,
-      secure, // true para puerto 465, false para otros puertos
+      secure,
       auth: {
         user,
         pass: password,
       },
-      // Aumentar timeout y agregar opciones para mejor compatibilidad
-      connectionTimeout: 10000, // 10 segundos
+      // Configuración optimizada para Brevo
+      connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 10000,
-      tls: {
-        rejectUnauthorized: false,
-        minVersion: 'TLSv1.2',
-      },
     });
 
-    this.fromEmail = this.config.get<string>('EMAIL_FROM_ADDRESS') || this.config.get<string>('EMAIL_FROM') || user || 'noreply@tymegym.com';
-    this.fromName = this.config.get<string>('EMAIL_FROM_NAME') || 'Tyme Gym';
+    this.fromEmail = this.config.get<string>('EMAIL_FROM_ADDRESS') || this.config.get<string>('EMAIL_FROM') || 'juan.contreras03@alumnos.ucn.cl';
+    this.fromName = this.config.get<string>('EMAIL_FROM_NAME') || 'TYME Gym';
     this.dryRun = (this.config.get<string>('EMAIL_DRY_RUN') || 'false').toLowerCase() === 'true';
 
     console.log('📧 Email settings:', {
       fromEmail: this.fromEmail,
       fromName: this.fromName,
       dryRun: this.dryRun,
+      provider: 'Brevo (Sendinblue)',
     });
 
     if (this.dryRun) {
       this.logger.warn('📧 Modo DRY_RUN activado - Los emails NO se enviarán realmente');
     } else if (user && password) {
-      this.logger.log('✅ Gmail SMTP inicializado correctamente');
+      this.logger.log('✅ Brevo SMTP inicializado correctamente');
     }
   }
 
