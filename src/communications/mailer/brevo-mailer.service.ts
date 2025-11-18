@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as SibApiV3Sdk from '@getbrevo/brevo';
+import { TransactionalEmailsApi, SendSmtpEmail } from '@getbrevo/brevo';
 
 /**
  * Servicio de email usando Brevo API (HTTP)
@@ -9,7 +9,7 @@ import * as SibApiV3Sdk from '@getbrevo/brevo';
 @Injectable()
 export class BrevoMailerService {
   private readonly logger = new Logger(BrevoMailerService.name);
-  private readonly apiInstance: SibApiV3Sdk.TransactionalEmailsApi;
+  private readonly apiInstance: TransactionalEmailsApi;
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly dryRun: boolean;
@@ -26,12 +26,10 @@ export class BrevoMailerService {
       this.logger.error('❌ Genera una API Key en Brevo → API Keys → Create a new API key');
     }
 
-    // Configurar Brevo API
-    const defaultClient = SibApiV3Sdk.ApiClient.instance;
-    const apiKeyAuth = defaultClient.authentications['api-key'];
-    apiKeyAuth.apiKey = apiKey;
-
-    this.apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+    // Configurar Brevo API - La API key se configura directamente en la instancia
+    this.apiInstance = new TransactionalEmailsApi();
+    this.apiInstance.setApiKey(0, apiKey); // 0 = apiKey enum value
+    
     this.fromEmail = this.config.get<string>('EMAIL_FROM_ADDRESS') || 'juan.contreras03@alumnos.ucn.cl';
     this.fromName = this.config.get<string>('EMAIL_FROM_NAME') || 'TYME Gym';
     this.dryRun = (this.config.get<string>('EMAIL_DRY_RUN') || 'false').toLowerCase() === 'true';
@@ -65,11 +63,13 @@ export class BrevoMailerService {
     }
 
     try {
-      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-      sendSmtpEmail.sender = { name: this.fromName, email: this.fromEmail };
-      sendSmtpEmail.to = [{ email: to }];
-      sendSmtpEmail.subject = subject;
-      sendSmtpEmail.htmlContent = html;
+      const sendSmtpEmail: SendSmtpEmail = {
+        sender: { name: this.fromName, email: this.fromEmail },
+        to: [{ email: to }],
+        subject: subject,
+        htmlContent: html,
+      };
+      
       if (text) {
         sendSmtpEmail.textContent = text;
       }
@@ -77,7 +77,7 @@ export class BrevoMailerService {
       console.log('📬 Calling Brevo API...');
       const result: any = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
       
-      const messageId = result?.messageId || result?.response?.messageId || 'unknown-message-id';
+      const messageId = result?.body?.messageId || result?.messageId || 'unknown-message-id';
       console.log('✅ Email sent successfully via Brevo API:', messageId);
       this.logger.log(`✅ Email enviado: ${messageId} → ${to}`);
       
