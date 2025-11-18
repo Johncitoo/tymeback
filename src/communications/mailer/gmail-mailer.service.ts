@@ -12,14 +12,24 @@ export class GmailMailerService {
   private readonly dryRun: boolean;
 
   constructor(private readonly config: ConfigService) {
-    const user = this.config.get<string>('EMAIL_USER') || '';
-    const password = this.config.get<string>('EMAIL_PASSWORD') || '';
+    // Intentar ambos nombres de variables para compatibilidad
+    const user = this.config.get<string>('EMAIL_USER') || this.config.get<string>('GMAIL_USER') || '';
+    const password = this.config.get<string>('EMAIL_PASSWORD') || this.config.get<string>('GMAIL_APP_PASSWORD') || '';
     const host = this.config.get<string>('EMAIL_HOST') || 'smtp.gmail.com';
     const port = parseInt(this.config.get<string>('EMAIL_PORT') || '587', 10);
     const secure = this.config.get<string>('EMAIL_SECURE') === 'true';
 
+    console.log('📧 Gmail SMTP Configuration:', {
+      user: user ? `${user.substring(0, 3)}***` : 'NOT SET',
+      password: password ? '***SET***' : 'NOT SET',
+      host,
+      port,
+      secure,
+    });
+
     if (!user || !password) {
-      this.logger.warn('⚠️ EMAIL_USER o EMAIL_PASSWORD no configurados - El servicio de email no funcionará');
+      this.logger.error('❌ EMAIL_USER/GMAIL_USER o EMAIL_PASSWORD/GMAIL_APP_PASSWORD no configurados');
+      this.logger.error('❌ El servicio de email NO funcionará hasta que se configuren');
     }
 
     this.transporter = nodemailer.createTransport({
@@ -35,13 +45,19 @@ export class GmailMailerService {
       },
     });
 
-    this.fromEmail = this.config.get<string>('EMAIL_FROM_ADDRESS') || user || 'noreply@tymegym.com';
+    this.fromEmail = this.config.get<string>('EMAIL_FROM_ADDRESS') || this.config.get<string>('EMAIL_FROM') || user || 'noreply@tymegym.com';
     this.fromName = this.config.get<string>('EMAIL_FROM_NAME') || 'Tyme Gym';
     this.dryRun = (this.config.get<string>('EMAIL_DRY_RUN') || 'false').toLowerCase() === 'true';
 
+    console.log('📧 Email settings:', {
+      fromEmail: this.fromEmail,
+      fromName: this.fromName,
+      dryRun: this.dryRun,
+    });
+
     if (this.dryRun) {
       this.logger.warn('📧 Modo DRY_RUN activado - Los emails NO se enviarán realmente');
-    } else {
+    } else if (user && password) {
       this.logger.log('✅ Gmail SMTP inicializado correctamente');
     }
   }
@@ -55,6 +71,13 @@ export class GmailMailerService {
    * @returns Promise con el ID del mensaje enviado
    */
   async send(to: string, subject: string, html: string, text?: string): Promise<string> {
+    console.log('📬 GmailMailerService.send - START');
+    console.log('📬 to:', to);
+    console.log('📬 subject:', subject);
+    console.log('📬 fromEmail:', this.fromEmail);
+    console.log('📬 fromName:', this.fromName);
+    console.log('📬 dryRun:', this.dryRun);
+    
     if (!to) {
       throw new Error('Destinatario vacío');
     }
@@ -65,6 +88,13 @@ export class GmailMailerService {
     }
 
     try {
+      console.log('📬 Calling transporter.sendMail...');
+      console.log('📬 Transporter config:', {
+        from: `"${this.fromName}" <${this.fromEmail}>`,
+        to,
+        subject,
+      });
+      
       const info = await this.transporter.sendMail({
         from: `"${this.fromName}" <${this.fromEmail}>`,
         to,
@@ -74,9 +104,13 @@ export class GmailMailerService {
       });
 
       const messageId = info.messageId || 'unknown-message-id';
+      console.log('✅ Email sent successfully:', messageId);
       this.logger.debug(`✅ Email enviado: ${messageId} → ${to}`);
       return messageId;
     } catch (error) {
+      console.error('❌ Error in GmailMailerService.send:', error);
+      console.error('❌ Error code:', error.code);
+      console.error('❌ Error response:', error.response);
       this.logger.error(`❌ Error al enviar email a ${to}:`, error);
       throw error;
     }

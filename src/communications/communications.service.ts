@@ -75,18 +75,34 @@ export class CommunicationsService {
 
   // ---------- Test send ----------
   async sendTest(gymId: string, dto: SendTestDto) {
-    const messageId = await this.mailer.send(dto.to, dto.subject, dto.html);
-    await this.logRepo.save(this.logRepo.create({
-      gymId,
-      toEmail: dto.to,
-      subject: dto.subject,
-      templateId: null,
-      campaignId: null,
-      status: EmailLogStatusEnum.SENT,
-      providerMessageId: messageId,
-      error: null,
-    }));
-    return { ok: true, messageId };
+    console.log('📧 CommunicationsService.sendTest - START');
+    console.log('📧 gymId:', gymId);
+    console.log('📧 dto:', dto);
+    
+    try {
+      console.log('📧 Calling mailer.send...');
+      const messageId = await this.mailer.send(dto.to, dto.subject, dto.html);
+      console.log('📧 Email sent, messageId:', messageId);
+      
+      console.log('📧 Saving email log...');
+      await this.logRepo.save(this.logRepo.create({
+        gymId,
+        toEmail: dto.to,
+        subject: dto.subject,
+        templateId: null,
+        campaignId: null,
+        status: EmailLogStatusEnum.SENT,
+        providerMessageId: messageId,
+        error: null,
+      }));
+      console.log('✅ sendTest completed successfully');
+      
+      return { ok: true, messageId };
+    } catch (error) {
+      console.error('❌ Error in sendTest:', error);
+      console.error('❌ Error stack:', error.stack);
+      throw error;
+    }
   }
 
   // ---------- Campaigns ----------
