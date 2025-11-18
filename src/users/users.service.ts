@@ -34,6 +34,9 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto): Promise<User> {
+    console.log('🟣 UsersService.create - START');
+    console.log('🟣 DTO:', dto);
+    
     const entity = this.repo.create({
       gymId: dto.gymId,
       role: dto.role,
@@ -51,14 +54,20 @@ export class UsersService {
     });
 
     try {
+      console.log('🟣 Saving user to database...');
       const saved = await this.repo.save(entity);
+      console.log('🟣 User saved:', saved.id);
 
       // Si es CLIENT y tiene email, enviar email de activación
       if (saved.role === RoleEnum.CLIENT && saved.email) {
+        console.log('🟣 User is CLIENT with email, sending activation email...');
         try {
+          console.log('🟣 Creating activation token...');
           // Generar token de activación (válido 72 horas)
           const activationToken = await this.authService.createActivationToken(saved.id, 72);
+          console.log('🟣 Activation token created:', activationToken);
           
+          console.log('🟣 Calling sendAccountActivationEmail...');
           // Enviar email de activación
           await this.commsService.sendAccountActivationEmail(
             saved.gymId,
@@ -67,14 +76,17 @@ export class UsersService {
             saved.fullName,
             activationToken
           );
+          console.log('✅ Activation email sent successfully');
         } catch (emailErr) {
           // No fallar el registro si el email falla
-          console.error('Error sending activation email:', emailErr);
+          console.error('⚠️ Error sending activation email (not failing registration):', emailErr);
         }
       }
 
+      console.log('✅ UsersService.create completed');
       return saved;
     } catch (err: any) {
+      console.error('❌ Error in UsersService.create:', err);
       if (err?.code === '23505') {
         // Unique: email por gym (no null) o rut por gym
         if (String(err?.detail || '').includes('(gym_id, email)')) {

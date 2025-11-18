@@ -21,8 +21,19 @@ export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}
 
   @Post()
-  create(@Body() dto: CreateClientDto) {
-    return this.clientsService.create(dto);
+  async create(@Body() dto: CreateClientDto) {
+    console.log('🟦 ClientsController.create - START');
+    console.log('🟦 DTO received:', dto);
+    
+    try {
+      const result = await this.clientsService.create(dto);
+      console.log('🟩 Client created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('🟥 Error in ClientsController.create:', error);
+      console.error('🟥 Error stack:', error.stack);
+      throw error;
+    }
   }
 
   // TEMPORAL: Endpoint para eliminar todos los clientes (SOLO DESARROLLO)

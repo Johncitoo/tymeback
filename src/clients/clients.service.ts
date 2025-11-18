@@ -28,6 +28,9 @@ export class ClientsService {
   ) {}
 
   async create(dto: CreateClientDto) {
+    console.log('🔵 ClientsService.create - START');
+    console.log('🔵 DTO:', dto);
+    
     // Validar trainer/nutritionist pertenecen al mismo gym y rol correcto (si vienen)
     const validateStaff = async (id?: string | null, role?: RoleEnum, gymId?: string) => {
       if (!id || !gymId) return null;
@@ -39,50 +42,65 @@ export class ClientsService {
       return u.id;
     };
 
-    return await this.dataSource.transaction(async (trx) => {
-      // 1) Crear usuario con rol CLIENT
-      const user = await this.usersService.create({
-        gymId: dto.gymId,
-        role: RoleEnum.CLIENT,
-        fullName: `${dto.firstName} ${dto.lastName}`,
-        email: dto.email ?? '',
-        password: 'temporal123', // Debe venir del dto o generar una temporal
-        phone: dto.phone,
-        rut: dto.rut,
-        birthDate: dto.birthDate,
-        gender: dto.gender as any, // Conversión de GenderIdentityEnum a GenderEnum
-        sex: dto.biologicalSex as any,
-        address: dto.address,
-        avatarUrl: dto.avatarUrl,
-        isActive: true,
+    console.log('🔵 Starting transaction...');
+    try {
+      const result = await this.dataSource.transaction(async (trx) => {
+        console.log('🔵 Inside transaction - creating user...');
+        // 1) Crear usuario con rol CLIENT
+        const user = await this.usersService.create({
+          gymId: dto.gymId,
+          role: RoleEnum.CLIENT,
+          fullName: `${dto.firstName} ${dto.lastName}`,
+          email: dto.email ?? '',
+          password: 'temporal123', // Debe venir del dto o generar una temporal
+          phone: dto.phone,
+          rut: dto.rut,
+          birthDate: dto.birthDate,
+          gender: dto.gender as any, // Conversión de GenderIdentityEnum a GenderEnum
+          sex: dto.biologicalSex as any,
+          address: dto.address,
+          avatarUrl: dto.avatarUrl,
+          isActive: true,
+        });
+
+        console.log('🔵 User created:', user.id);
+
+        // 2) Crear registro en clients
+        const client = this.clientsRepo.create({
+          userId: user.id,
+          trainerId: await validateStaff(dto.trainerId, RoleEnum.TRAINER, dto.gymId),
+          nutritionistId: null,
+          privateSessionsNote: null,
+        });
+        await trx.getRepository(Client).save(client);
+        
+        console.log('🔵 Client record created');
+
+        // 3) Insertar contactos (si vienen)
+        const emergencyContacts: any[] = [];
+        // if (dto.emergencyContacts?.length) {
+        //   const rows = dto.emergencyContacts.map((c) =>
+        //     this.contactsRepo.create({ clientId: user.id, ...c }),
+        //   );
+        //   await trx.getRepository(EmergencyContact).save(rows);
+        //   emergencyContacts = rows;
+        // }
+
+        // Respuesta combinada mínima
+        return {
+          user,
+          client,
+          emergencyContacts,
+        };
       });
-
-      // 2) Crear registro en clients
-      const client = this.clientsRepo.create({
-        userId: user.id,
-        trainerId: await validateStaff(dto.trainerId, RoleEnum.TRAINER, dto.gymId),
-        nutritionistId: null,
-        privateSessionsNote: null,
-      });
-      await trx.getRepository(Client).save(client);
-
-      // 3) Insertar contactos (si vienen)
-      const emergencyContacts: any[] = [];
-      // if (dto.emergencyContacts?.length) {
-      //   const rows = dto.emergencyContacts.map((c) =>
-      //     this.contactsRepo.create({ clientId: user.id, ...c }),
-      //   );
-      //   await trx.getRepository(EmergencyContact).save(rows);
-      //   emergencyContacts = rows;
-      // }
-
-      // Respuesta combinada mínima
-      return {
-        user,
-        client,
-        emergencyContacts,
-      };
-    });
+      
+      console.log('✅ Transaction completed successfully');
+      return result;
+    } catch (error) {
+      console.error('❌ Error in ClientsService.create:', error);
+      console.error('❌ Error stack:', error.stack);
+      throw error;
+    }
   }
 
   async findAll(q: QueryClientsDto) {
