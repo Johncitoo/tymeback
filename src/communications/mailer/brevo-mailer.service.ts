@@ -77,14 +77,20 @@ export class BrevoMailerService {
       console.log('📬 Calling Brevo API...');
       const result: any = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
       
+      // La API de Brevo retorna el resultado en result.body
+      console.log('📬 Brevo API result:', JSON.stringify(result, null, 2));
+      console.log('📬 result.body:', result?.body);
+      console.log('📬 result.response:', result?.response);
+      
       const messageId = result?.body?.messageId || result?.messageId || 'unknown-message-id';
-      console.log('✅ Email sent successfully via Brevo API:', messageId);
+      console.log('✅ Email sent successfully via Brevo API, messageId:', messageId);
       this.logger.log(`✅ Email enviado: ${messageId} → ${to}`);
       
       return String(messageId);
     } catch (error: any) {
       console.error('❌ Error in BrevoMailerService.send:', error);
       console.error('❌ Error response:', error.response?.text || error.message);
+      console.error('❌ Error body:', error.body);
       this.logger.error(`❌ Error al enviar email a ${to}:`, error.message);
       throw new Error(error.response?.text || error.message || 'Error sending email');
     }
