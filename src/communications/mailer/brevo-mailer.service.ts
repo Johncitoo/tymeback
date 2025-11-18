@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-const brevo = require('@getbrevo/brevo');
+import * as SibApiV3Sdk from '@getbrevo/brevo';
 
 /**
  * Servicio de email usando Brevo API (HTTP)
@@ -9,7 +9,7 @@ const brevo = require('@getbrevo/brevo');
 @Injectable()
 export class BrevoMailerService {
   private readonly logger = new Logger(BrevoMailerService.name);
-  private readonly apiInstance: any;
+  private readonly apiInstance: SibApiV3Sdk.TransactionalEmailsApi;
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly dryRun: boolean;
@@ -27,11 +27,11 @@ export class BrevoMailerService {
     }
 
     // Configurar Brevo API
-    const defaultClient = brevo.ApiClient.instance;
+    const defaultClient = SibApiV3Sdk.ApiClient.instance;
     const apiKeyAuth = defaultClient.authentications['api-key'];
     apiKeyAuth.apiKey = apiKey;
 
-    this.apiInstance = new brevo.TransactionalEmailsApi();
+    this.apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
     this.fromEmail = this.config.get<string>('EMAIL_FROM_ADDRESS') || 'juan.contreras03@alumnos.ucn.cl';
     this.fromName = this.config.get<string>('EMAIL_FROM_NAME') || 'TYME Gym';
     this.dryRun = (this.config.get<string>('EMAIL_DRY_RUN') || 'false').toLowerCase() === 'true';
@@ -65,7 +65,7 @@ export class BrevoMailerService {
     }
 
     try {
-      const sendSmtpEmail = new brevo.SendSmtpEmail();
+      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
       sendSmtpEmail.sender = { name: this.fromName, email: this.fromEmail };
       sendSmtpEmail.to = [{ email: to }];
       sendSmtpEmail.subject = subject;
@@ -75,7 +75,7 @@ export class BrevoMailerService {
       }
 
       console.log('📬 Calling Brevo API...');
-      const result = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+      const result: any = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
       
       const messageId = result?.messageId || result?.response?.messageId || 'unknown-message-id';
       console.log('✅ Email sent successfully via Brevo API:', messageId);
