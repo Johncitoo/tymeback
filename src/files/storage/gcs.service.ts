@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Storage, GetSignedUrlConfig } from '@google-cloud/storage';
 
 type UploadArgs = { bucket: string; key: string; contentType: string; expiresIn: number };
@@ -9,9 +10,31 @@ export class GcsService {
   private readonly storage: Storage;
   private readonly logger = new Logger(GcsService.name);
 
-  constructor() {
-    // Usa GOOGLE_APPLICATION_CREDENTIALS o ADC por defecto
-    this.storage = new Storage();
+  constructor(private readonly config: ConfigService) {
+    const projectId = this.config.get<string>('GCP_PROJECT_ID');
+    const privateKey = this.config.get<string>('GCP_PRIVATE_KEY');
+    const clientEmail = this.config.get<string>('GCP_SERVICE_ACCOUNT_EMAIL');
+
+    if (!projectId || !privateKey || !clientEmail) {
+      this.logger.warn('⚠️  GCS credentials not configured - file functionality disabled');
+      // Inicializar sin credenciales (fallará en operaciones pero no en startup)
+      this.storage = new Storage();
+    } else {
+      // Configurar con las credenciales de la cuenta de servicio
+      // La private key puede venir con \n escapados, hay que reemplazarlos
+      const formattedKey = privateKey.includes('\\n') 
+        ? privateKey.replace(/\\n/g, '\n')
+        : privateKey;
+
+      this.storage = new Storage({
+        projectId,
+        credentials: {
+          client_email: clientEmail,
+          private_key: formattedKey,
+        },
+      });
+      this.logger.log(`✅ GCS configured for project: ${projectId}`);
+    }
   }
 
   async getSignedUploadUrl(args: UploadArgs) {

@@ -44,10 +44,10 @@ export class FilesService {
     private readonly gcs: GcsService,
     private readonly config: ConfigService,
   ) {
-    this.bucket = this.config.get<string>('GCS_BUCKET') || '';
+    this.bucket = this.config.get<string>('GCP_BUCKET_NAME') || '';
     // GCS opcional - si no está configurado, los uploads fallarán pero el backend iniciará
     if (!this.bucket) {
-      console.warn('⚠️  GCS_BUCKET no configurado - funcionalidad de archivos deshabilitada');
+      console.warn('⚠️  GCP_BUCKET_NAME no configurado - funcionalidad de archivos deshabilitada');
     }
     this.putTtl = Number(this.config.get<string>('GCS_SIGNED_PUT_TTL_SECONDS') ?? '900'); // 15m
     this.maxBytes = Number(this.config.get<string>('UPLOAD_MAX_BYTES') ?? String(10 * 1024 * 1024)); // 10MB

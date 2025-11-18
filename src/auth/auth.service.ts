@@ -1,9 +1,11 @@
 import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { Repository } from 'typeorm';
+import { Repository, LessThan } from 'typeorm';
 import * as crypto from 'crypto';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { AuthToken, TokenTypeEnum } from './entities/auth-token.entity';
+import { CommunicationsService } from '../communications/communications.service';
 
 export interface AuthUser {
   id: string;
@@ -17,7 +19,9 @@ export interface AuthUser {
 export class AuthService {
   constructor(
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(AuthToken) private readonly tokensRepo: Repository<AuthToken>,
     private readonly jwtService: JwtService,
+    private readonly communicationsService: CommunicationsService,
   ) {}
 
   private hashPassword(plain: string): string {
@@ -133,5 +137,113 @@ export class AuthService {
     // Hashear y guardar nueva contraseña
     user.hashedPassword = this.hashPassword(newPassword);
     await this.usersRepo.save(user);
+  }
+
+  /**
+   * Genera un token único de activación de cuenta
+   * @param userId ID del usuario
+   * @param expiresInHours Horas de validez del token (default: 72h = 3 días)
+   */
+  async createActivationToken(userId: string, expiresInHours = 72): Promise<string> {
+    // Generar token seguro (32 bytes = 64 caracteres hex)
+    const token = crypto.randomBytes(32).toString('hex');
+    
+    // Calcular fecha de expiración
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + expiresInHours);
+
+    // Guardar en base de datos
+    const authToken = this.tokensRepo.create({
+      userId,
+      token,
+      type: TokenTypeEnum.ACCOUNT_ACTIVATION,
+      expiresAt,
+      isUsed: false,
+      usedAt: null,
+    });
+
+    await this.tokensRepo.save(authToken);
+    return token;
+  }
+
+  /**
+   * Verifica si un token de activación es válido
+   */
+  async verifyActivationToken(token: string): Promise<{ valid: boolean; userId?: string; email?: string; fullName?: string }> {
+    const authToken = await this.tokensRepo.findOne({
+      where: { token, type: TokenTypeEnum.ACCOUNT_ACTIVATION },
+      relations: ['user'],
+    });
+
+    if (!authToken) {
+      return { valid: false };
+    }
+
+    // Verificar si ya fue usado
+    if (authToken.isUsed) {
+      return { valid: false };
+    }
+
+    // Verificar si expiró
+    if (new Date() > authToken.expiresAt) {
+      return { valid: false };
+    }
+
+    return {
+      valid: true,
+      userId: authToken.userId,
+      email: authToken.user?.email || undefined,
+      fullName: authToken.user?.fullName || undefined,
+    };
+  }
+
+  /**
+   * Activa una cuenta estableciendo una nueva contraseña
+   */
+  async activateAccount(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    // Verificar token
+    const verification = await this.verifyActivationToken(token);
+    if (!verification.valid || !verification.userId) {
+      throw new BadRequestException('Token inválido o expirado');
+    }
+
+    // Validar contraseña
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('La contraseña debe tener al menos 8 caracteres');
+    }
+
+    // Obtener usuario
+    const user = await this.usersRepo.findOne({ where: { id: verification.userId } });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    // Establecer contraseña
+    user.hashedPassword = this.hashPassword(newPassword);
+    user.isActive = true; // Asegurar que la cuenta esté activa
+    await this.usersRepo.save(user);
+
+    // Marcar token como usado
+    const authToken = await this.tokensRepo.findOne({ where: { token } });
+    if (authToken) {
+      authToken.isUsed = true;
+      authToken.usedAt = new Date();
+      await this.tokensRepo.save(authToken);
+    }
+
+    return {
+      success: true,
+      message: 'Cuenta activada exitosamente',
+    };
+  }
+
+  /**
+   * Limpia tokens expirados (se puede ejecutar con un cron job)
+   */
+  async cleanExpiredTokens(): Promise<number> {
+    const result = await this.tokensRepo.delete({
+      expiresAt: LessThan(new Date()),
+    });
+    return result.affected || 0;
   }
 }

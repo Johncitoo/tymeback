@@ -47,13 +47,37 @@ export class UsersController {
     return this.usersService.findOne(id, gid);
   }
 
-  // Actualizar — ADMIN
+  // Actualizar — ADMIN o el propio usuario (solo ciertos campos)
   @Patch(':id')
-  @Roles(RoleEnum.ADMIN)
   update(@Param('id') id: string, @Query('gymId') gymId: string, @Body() dto: UpdateUserDto, @CurrentUser() user: JwtUser) {
     const gid = gymId ?? user.gymId;
     if (gid !== user.gymId) throw new ForbiddenException('gymId inválido');
+    
+    // Si no es ADMIN, solo puede actualizar sus propios datos
+    if (id !== user.sub && user.role !== RoleEnum.ADMIN) {
+      throw new ForbiddenException('Solo ADMIN o el propio usuario');
+    }
+    
     return this.usersService.update(id, gid, dto);
+  }
+
+  // Actualizar avatar — ADMIN o el propio usuario
+  @Patch(':id/avatar')
+  updateAvatar(
+    @Param('id') id: string,
+    @Query('gymId') gymId: string,
+    @Body('avatarUrl') avatarUrl: string,
+    @CurrentUser() user: JwtUser
+  ) {
+    const gid = gymId ?? user.gymId;
+    if (gid !== user.gymId) throw new ForbiddenException('gymId inválido');
+    
+    // Solo el propio usuario o ADMIN puede cambiar el avatar
+    if (id !== user.sub && user.role !== RoleEnum.ADMIN) {
+      throw new ForbiddenException('Solo ADMIN o el propio usuario');
+    }
+    
+    return this.usersService.updateAvatar(id, gid, avatarUrl);
   }
 
   // Eliminar — ADMIN

@@ -3,6 +3,8 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
@@ -11,6 +13,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CommunicationsService } from '../communications/communications.service';
+import { AuthService } from '../auth/auth.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -19,6 +22,8 @@ export class UsersService {
     @InjectRepository(User)
     private readonly repo: Repository<User>,
     private readonly commsService: CommunicationsService,
+    @Inject(forwardRef(() => AuthService))
+    private readonly authService: AuthService,
   ) {}
 
   private hashPassword(plain: string): string {
@@ -48,13 +53,23 @@ export class UsersService {
     try {
       const saved = await this.repo.save(entity);
 
-      // Enviar email de bienvenida si es CLIENT y tiene email
+      // Si es CLIENT y tiene email, enviar email de activación
       if (saved.role === RoleEnum.CLIENT && saved.email) {
         try {
-          await this.commsService.sendWelcomeEmail(saved.gymId, saved.id, saved.email, saved.fullName);
+          // Generar token de activación (válido 72 horas)
+          const activationToken = await this.authService.createActivationToken(saved.id, 72);
+          
+          // Enviar email de activación
+          await this.commsService.sendAccountActivationEmail(
+            saved.gymId,
+            saved.id,
+            saved.email,
+            saved.fullName,
+            activationToken
+          );
         } catch (emailErr) {
           // No fallar el registro si el email falla
-          console.error('Error sending welcome email:', emailErr);
+          console.error('Error sending activation email:', emailErr);
         }
       }
 
@@ -140,5 +155,11 @@ export class UsersService {
     const res = await this.repo.softDelete({ id, gymId });
     if (!res.affected) throw new NotFoundException('Usuario no encontrado');
     return { id };
+  }
+
+  async updateAvatar(id: string, gymId: string, avatarUrl: string): Promise<User> {
+    const user = await this.findOne(id, gymId);
+    user.avatarUrl = avatarUrl;
+    return await this.repo.save(user);
   }
 }

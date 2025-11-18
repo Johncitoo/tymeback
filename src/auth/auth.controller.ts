@@ -42,4 +42,18 @@ export class AuthController {
   changePassword(@CurrentUser() user: JwtUser, @Body() dto: { currentPassword: string; newPassword: string }) {
     return this.auth.changePassword(user.sub, user.gymId, dto.currentPassword, dto.newPassword);
   }
+
+  // ---------- Activación de Cuenta ----------
+  
+  @Post('verify-activation-token')
+  async verifyActivationToken(@Body() dto: { token: string }) {
+    const result = await this.auth.verifyActivationToken(dto.token);
+    return result;
+  }
+
+  @Post('activate-account')
+  async activateAccount(@Body() dto: { token: string; newPassword: string }) {
+    const result = await this.auth.activateAccount(dto.token, dto.newPassword);
+    return result;
+  }
 }
