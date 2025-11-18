@@ -16,8 +16,9 @@ export class GmailMailerService {
     const user = this.config.get<string>('EMAIL_USER') || this.config.get<string>('GMAIL_USER') || '';
     const password = this.config.get<string>('EMAIL_PASSWORD') || this.config.get<string>('GMAIL_APP_PASSWORD') || '';
     const host = this.config.get<string>('EMAIL_HOST') || 'smtp.gmail.com';
-    const port = parseInt(this.config.get<string>('EMAIL_PORT') || '587', 10);
-    const secure = this.config.get<string>('EMAIL_SECURE') === 'true';
+    // Usar puerto 465 con SSL por defecto (mejor compatibilidad con Railway)
+    const port = parseInt(this.config.get<string>('EMAIL_PORT') || '465', 10);
+    const secure = this.config.get<string>('EMAIL_SECURE') !== 'false'; // true por defecto
 
     console.log('📧 Gmail SMTP Configuration:', {
       user: user ? `${user.substring(0, 3)}***` : 'NOT SET',
@@ -35,13 +36,18 @@ export class GmailMailerService {
     this.transporter = nodemailer.createTransport({
       host,
       port,
-      secure,
+      secure, // true para puerto 465, false para otros puertos
       auth: {
         user,
         pass: password,
       },
+      // Aumentar timeout y agregar opciones para mejor compatibilidad
+      connectionTimeout: 10000, // 10 segundos
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
       tls: {
         rejectUnauthorized: false,
+        minVersion: 'TLSv1.2',
       },
     });
 
