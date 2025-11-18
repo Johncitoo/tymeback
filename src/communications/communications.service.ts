@@ -391,7 +391,7 @@ export class CommunicationsService {
     activationToken: string
   ) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const activationLink = `${frontendUrl}?token=${activationToken}`;
+    const activationLink = `${frontendUrl}/activate/${activationToken}`;
 
     const subject = '¡Bienvenido a TYME Gym! Activa tu cuenta';
     
