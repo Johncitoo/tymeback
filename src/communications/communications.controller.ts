@@ -116,6 +116,6 @@ export class CommunicationsController {
 
   @Get('email-logs/:id')
   async getEmailLogById(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.service.getEmailLogById(user.gymId, +id);
+    return this.service.getEmailLogById(user.gymId, id);
   }
 }

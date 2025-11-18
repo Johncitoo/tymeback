@@ -613,7 +613,7 @@ export class CommunicationsService {
   ) {
     const query = this.logRepo
       .createQueryBuilder('log')
-      .where('log.gymId = :gymId', { gymId })
+      .where('log.gymId = :gymId', { gymId: String(gymId) })
       .orderBy('log.createdAt', 'DESC');
 
     if (filters?.status) {
@@ -639,7 +639,7 @@ export class CommunicationsService {
   }
 
   async getEmailLogStats(gymId: number) {
-    const logs = await this.logRepo.find({ where: { gymId } });
+    const logs = await this.logRepo.find({ where: { gymId: String(gymId) } });
     
     return {
       total: logs.length,
@@ -649,8 +649,8 @@ export class CommunicationsService {
     };
   }
 
-  async getEmailLogById(gymId: number, id: number) {
-    const log = await this.logRepo.findOne({ where: { id, gymId } });
+  async getEmailLogById(gymId: number, id: string) {
+    const log = await this.logRepo.findOne({ where: { id, gymId: String(gymId) } });
     if (!log) {
       throw new NotFoundException(`Email log ${id} not found`);
     }

@@ -5,6 +5,7 @@ import {
 export enum EmailLogStatusEnum {
   SENT = 'SENT',
   FAILED = 'FAILED',
+  PENDING = 'PENDING',
 }
 
 @Entity({ name: 'email_logs' })
