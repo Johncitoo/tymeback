@@ -611,42 +611,59 @@ export class CommunicationsService {
       search?: string;
     },
   ) {
-    const query = this.logRepo
-      .createQueryBuilder('log')
-      .where('log.gymId = :gymId', { gymId: String(gymId) })
-      .orderBy('log.createdAt', 'DESC');
+    try {
+      const query = this.logRepo
+        .createQueryBuilder('log')
+        .where('log.gymId = :gymId', { gymId: String(gymId) })
+        .orderBy('log.createdAt', 'DESC');
 
-    if (filters?.status) {
-      query.andWhere('log.status = :status', { status: filters.status });
+      if (filters?.status) {
+        query.andWhere('log.status = :status', { status: filters.status });
+      }
+
+      if (filters?.startDate) {
+        query.andWhere('log.createdAt >= :startDate', { startDate: new Date(filters.startDate) });
+      }
+
+      if (filters?.endDate) {
+        query.andWhere('log.createdAt <= :endDate', { endDate: new Date(filters.endDate) });
+      }
+
+      if (filters?.search) {
+        query.andWhere(
+          '(log.toEmail ILIKE :search OR log.subject ILIKE :search OR log.error ILIKE :search)',
+          { search: `%${filters.search}%` },
+        );
+      }
+
+      return await query.getMany();
+    } catch (error) {
+      console.error('Error getting email logs:', error);
+      // Retornar array vacío si hay error
+      return [];
     }
-
-    if (filters?.startDate) {
-      query.andWhere('log.createdAt >= :startDate', { startDate: new Date(filters.startDate) });
-    }
-
-    if (filters?.endDate) {
-      query.andWhere('log.createdAt <= :endDate', { endDate: new Date(filters.endDate) });
-    }
-
-    if (filters?.search) {
-      query.andWhere(
-        '(log.toEmail ILIKE :search OR log.subject ILIKE :search OR log.error ILIKE :search)',
-        { search: `%${filters.search}%` },
-      );
-    }
-
-    return query.getMany();
   }
 
   async getEmailLogStats(gymId: number) {
-    const logs = await this.logRepo.find({ where: { gymId: String(gymId) } });
-    
-    return {
-      total: logs.length,
-      sent: logs.filter(l => l.status === EmailLogStatusEnum.SENT).length,
-      failed: logs.filter(l => l.status === EmailLogStatusEnum.FAILED).length,
-      pending: logs.filter(l => l.status === EmailLogStatusEnum.PENDING).length,
-    };
+    try {
+      const logs = await this.logRepo.find({ where: { gymId: String(gymId) } });
+      
+      return {
+        total: logs.length,
+        sent: logs.filter(l => l.status === EmailLogStatusEnum.SENT).length,
+        failed: logs.filter(l => l.status === EmailLogStatusEnum.FAILED).length,
+        pending: logs.filter(l => l.status === EmailLogStatusEnum.PENDING).length,
+      };
+    } catch (error) {
+      console.error('Error getting email log stats:', error);
+      // Retornar valores por defecto si hay error
+      return {
+        total: 0,
+        sent: 0,
+        failed: 0,
+        pending: 0,
+      };
+    }
   }
 
   async getEmailLogById(gymId: number, id: string) {
