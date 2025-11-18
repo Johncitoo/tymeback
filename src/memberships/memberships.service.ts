@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { Membership, MembershipStatusEnum } from './entities/membership.entity';
@@ -38,6 +38,43 @@ export class MembershipsService {
   async findOne(id: string) {
     const m = await this.repo.findOne({ where: { id } });
     if (!m) throw new NotFoundException('Membership not found');
+    return m;
+  }
+
+  /**
+   * Encuentra la membresía activa de un cliente
+   */
+  async getActiveForClient(clientId: string): Promise<Membership | null> {
+    const today = todayIso();
+    const m = await this.repo.findOne({
+      where: {
+        clientId,
+        status: MembershipStatusEnum.ACTIVE,
+        startsOn: LessThanOrEqual(today),
+        endsOn: MoreThanOrEqual(today),
+      },
+      order: { endsOn: 'DESC' },
+    });
+    return m || null;
+  }
+
+  /**
+   * Usa N sesiones de una membresía
+   */
+  async useSessions(membershipId: string, options: { count?: number; note?: string }) {
+    const m = await this.findOne(membershipId);
+    const count = options.count ?? 1;
+
+    if (m.sessionsQuota <= 0) {
+      throw new BadRequestException('Esta membresía no incluye sesiones privadas');
+    }
+
+    if (m.sessionsUsed + count > m.sessionsQuota) {
+      throw new BadRequestException('No hay suficientes sesiones disponibles');
+    }
+
+    m.sessionsUsed += count;
+    await this.repo.save(m);
     return m;
   }
 

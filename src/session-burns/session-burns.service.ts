@@ -48,38 +48,37 @@ export class SessionBurnsService {
     return `${y}-${m}-${day}`;
   }
 
-  private async assertRole(userId: string, gymId: string, allowed: RoleEnum[]) {
-    const u = await this.usersRepo.findOne({ where: { id: userId, gymId } });
-    if (!u) throw new NotFoundException('Usuario no pertenece al gimnasio');
+  private async assertRole(userId: string, allowed: RoleEnum[]) {
+    const u = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
     if (!allowed.includes(u.role)) {
       throw new ForbiddenException('No autorizado para esta acción');
     }
     return u;
   }
 
-  private async assertClient(gymId: string, clientId: string) {
-    const u = await this.usersRepo.findOne({ where: { id: clientId, gymId } });
-    if (!u) throw new NotFoundException('Cliente no pertenece al gimnasio');
+  private async assertClient(clientId: string) {
+    const u = await this.usersRepo.findOne({ where: { id: clientId } });
+    if (!u) throw new NotFoundException('Cliente no encontrado');
     if (u.role !== RoleEnum.CLIENT) {
       throw new BadRequestException('El usuario indicado no es un cliente');
     }
     return u;
   }
 
-  private async resolveActiveMembership(gymId: string, clientId: string) {
-    const m = await this.membershipsService.getActiveForClient(clientId, gymId);
+  private async resolveActiveMembership(clientId: string) {
+    const m = await this.membershipsService.getActiveForClient(clientId);
     if (!m) throw new ForbiddenException('No tiene membresía activa');
     return m;
   }
 
   private async getMembershipOrActive(
-    gymId: string,
     clientId: string,
     membershipId?: string,
   ) {
     if (membershipId) {
       const m = await this.membRepo.findOne({
-        where: { id: membershipId, gymId, clientId },
+        where: { id: membershipId, clientId },
       });
       if (!m) throw new NotFoundException('Membresía no encontrada');
       if (m.status !== MembershipStatusEnum.ACTIVE) {
@@ -87,7 +86,7 @@ export class SessionBurnsService {
       }
       return m;
     }
-    return this.resolveActiveMembership(gymId, clientId);
+    return this.resolveActiveMembership(clientId);
   }
 
   private generateToken(): string {
@@ -97,14 +96,13 @@ export class SessionBurnsService {
 
   // ---------- QR ----------
   async generateQr(dto: GenerateQrDto) {
-    await this.assertRole(dto.createdByUserId, dto.gymId, [
+    await this.assertRole(dto.createdByUserId, [
       RoleEnum.ADMIN,
       RoleEnum.TRAINER,
     ]);
-    await this.assertClient(dto.gymId, dto.clientId);
+    await this.assertClient(dto.clientId);
 
     const m = await this.getMembershipOrActive(
-      dto.gymId,
       dto.clientId,
       dto.membershipId,
     );
@@ -147,7 +145,7 @@ export class SessionBurnsService {
   }
 
   async redeemQr(dto: RedeemQrDto) {
-    await this.assertClient(dto.gymId, dto.clientId);
+    await this.assertClient(dto.clientId);
 
     const qr = await this.qrRepo.findOne({
       where: { token: dto.token, gymId: dto.gymId },
@@ -168,7 +166,7 @@ export class SessionBurnsService {
 
     // Confirmar que la membresía siga activa y con cupo
     const m = await this.membRepo.findOne({
-      where: { id: qr.membershipId, gymId: dto.gymId },
+      where: { id: qr.membershipId, clientId: dto.clientId },
     });
     if (!m || m.clientId !== dto.clientId)
       throw new NotFoundException('Membresía no encontrada');
@@ -179,7 +177,6 @@ export class SessionBurnsService {
 
     // Consumir 1 sesión
     await this.membershipsService.useSessions(m.id, {
-      gymId: dto.gymId,
       count: 1,
       note: 'QR redeem',
     });
@@ -203,7 +200,7 @@ export class SessionBurnsService {
   }
 
   async revokeQr(id: string, gymId: string, byUserId: string) {
-    await this.assertRole(byUserId, gymId, [RoleEnum.ADMIN, RoleEnum.TRAINER]);
+    await this.assertRole(byUserId, [RoleEnum.ADMIN, RoleEnum.TRAINER]);
     const qr = await this.qrRepo.findOne({ where: { id, gymId } });
     if (!qr) throw new NotFoundException('QR no encontrado');
     if (qr.usedAt) throw new BadRequestException('QR ya utilizado; no se puede revocar');
@@ -225,14 +222,13 @@ export class SessionBurnsService {
 
   // ---------- MANUAL ----------
   async manualBurn(dto: ManualBurnDto) {
-    await this.assertRole(dto.burnedByUserId, dto.gymId, [
+    await this.assertRole(dto.burnedByUserId, [
       RoleEnum.ADMIN,
       RoleEnum.TRAINER,
     ]);
-    await this.assertClient(dto.gymId, dto.clientId);
+    await this.assertClient(dto.clientId);
 
     const m = await this.getMembershipOrActive(
-      dto.gymId,
       dto.clientId,
       dto.membershipId,
     );
@@ -246,7 +242,6 @@ export class SessionBurnsService {
 
     // Consumir 1
     await this.membershipsService.useSessions(m.id, {
-      gymId: dto.gymId,
       count: 1,
       note: dto.note ?? 'Manual burn',
     });
