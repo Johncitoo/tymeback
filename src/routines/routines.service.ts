@@ -317,8 +317,8 @@ export class RoutinesService {
     return a;
   }
 
-  async setExerciseOverride(dto: UpdateExerciseOverrideDto) {
-    const a = await this.getAssignment(dto.assignmentId, dto.gymId);
+  async setExerciseOverride(dto: UpdateExerciseOverrideDto, gymId: string) {
+    const a = await this.getAssignment(dto.assignmentId, gymId);
     const overrides = { ...(a.exerciseOverrides ?? {}) };
     overrides[dto.rdeId] = dto.override; // guarda por rdeId
     a.exerciseOverrides = overrides;

@@ -94,8 +94,8 @@ export class RoutinesController {
   }
 
   @Patch('assignments/override')
-  setOverride(@Body() dto: UpdateExerciseOverrideDto) {
-    return this.service.setExerciseOverride(dto);
+  setOverride(@Body() dto: UpdateExerciseOverrideDto, @CurrentUser() user: any) {
+    return this.service.setExerciseOverride(dto, user.gymId);
   }
 
   @Patch('assignments/:id/deactivate')

@@ -3,11 +3,9 @@ import { IsUUID, IsObject } from 'class-validator';
 /**
  * Guarda overrides por ejercicio para un cliente:
  * payload libre (validado en front): { type: 'NORMAL'|'DROPSET'|'TOPSET'|'SUPERSET'|'GIANT', parts: [{kg,reps},...], restSeconds, notes, ... }
+ * El gymId se obtiene automáticamente del usuario autenticado
  */
 export class UpdateExerciseOverrideDto {
-  @IsUUID('all')
-  gymId!: string;
-
   @IsUUID('all')
   assignmentId!: string;
 
