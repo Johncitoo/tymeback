@@ -1,8 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { runMigration } from './scripts/migrate-routine-assignments';
 
 async function bootstrap() {
+  // Ejecutar migraciones antes de iniciar la app
+  try {
+    await runMigration();
+  } catch (error) {
+    console.error('⚠️  Error en migración, continuando con la app:', error);
+  }
+
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
