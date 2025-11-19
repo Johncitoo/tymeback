@@ -326,6 +326,14 @@ export class RoutinesService {
     return this.assignRepo.save(a);
   }
 
+  async refreshSnapshot(assignmentId: string, gymId: string) {
+    const a = await this.getAssignment(assignmentId, gymId);
+    const freshSnapshot = await this.buildSnapshot(a.routineId, gymId);
+    a.snapshot = freshSnapshot;
+    a.updatedAt = new Date();
+    return this.assignRepo.save(a);
+  }
+
   async deactivateAssignment(id: string, gymId: string) {
     const a = await this.getAssignment(id, gymId);
     if (!a.isActive) return a;

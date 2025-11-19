@@ -98,6 +98,11 @@ export class RoutinesController {
     return this.service.setExerciseOverride(dto, user.gymId);
   }
 
+  @Patch('assignments/:id/refresh-snapshot')
+  refreshSnapshot(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.refreshSnapshot(id, user.gymId);
+  }
+
   @Patch('assignments/:id/deactivate')
   deactivate(@Param('id') id: string, @Query('gymId') gymId: string) {
     return this.service.deactivateAssignment(id, gymId);
