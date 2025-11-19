@@ -90,7 +90,7 @@ export class RoutinesController {
   // ---- assignments ----
   @Post('assign')
   assign(@Body() dto: AssignRoutineDto, @CurrentUser() user: any) {
-    return this.service.assign(dto, user.gymId, user.userId);
+    return this.service.assign(dto, user.gymId, user.sub);
   }
 
   @Patch('assignments/override')
