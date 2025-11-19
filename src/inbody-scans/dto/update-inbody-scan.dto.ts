@@ -1,8 +1,9 @@
 import { IsUUID, IsOptional, IsDateString, IsObject, IsString, IsUrl } from 'class-validator';
 
 export class UpdateInbodyScanDto {
+  @IsOptional()
   @IsUUID()
-  gymId!: string;
+  gymId?: string;
 
   // quien edita (nutricionista/admin)
   @IsUUID()

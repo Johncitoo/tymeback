@@ -8,8 +8,9 @@ import {
 } from 'class-validator';
 
 export class CreateNutritionPlanDto {
+  @IsOptional()
   @IsUUID()
-  gymId!: string;
+  gymId?: string;
 
   @IsUUID()
   clientId!: string;

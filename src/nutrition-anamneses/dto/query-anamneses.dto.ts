@@ -2,8 +2,9 @@ import { Type } from 'class-transformer';
 import { IsDateString, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
 
 export class QueryAnamnesesDto {
+  @IsOptional()
   @IsUUID()
-  gymId!: string;
+  gymId?: string;
 
   @IsUUID()
   @IsOptional()

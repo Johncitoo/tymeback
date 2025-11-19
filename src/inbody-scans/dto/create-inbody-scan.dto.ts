@@ -1,8 +1,9 @@
 import { IsUUID, IsOptional, IsDateString, IsObject, IsString, IsUrl } from 'class-validator';
 
 export class CreateInbodyScanDto {
+  @IsOptional()
   @IsUUID()
-  gymId!: string;
+  gymId?: string;
 
   @IsUUID()
   clientId!: string;

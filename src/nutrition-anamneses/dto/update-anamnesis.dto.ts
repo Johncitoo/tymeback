@@ -6,8 +6,9 @@ export class UpdateAnamnesisDto extends PartialType(CreateAnamnesisDto) {
   @IsUUID()
   id!: string;
 
+  @IsOptional()
   @IsUUID()
-  gymId!: string;
+  gymId?: string;
 
   @IsDateString()
   @IsOptional()

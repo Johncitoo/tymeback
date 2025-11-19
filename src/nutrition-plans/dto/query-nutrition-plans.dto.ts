@@ -9,8 +9,9 @@ import {
 } from 'class-validator';
 
 export class QueryNutritionPlansDto {
+  @IsOptional()
   @IsUUID()
-  gymId!: string;
+  gymId?: string;
 
   @IsOptional()
   @IsUUID()

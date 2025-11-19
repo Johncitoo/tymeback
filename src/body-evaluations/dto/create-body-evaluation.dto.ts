@@ -1,8 +1,9 @@
 import { IsUUID, IsOptional, IsDateString, IsObject, IsString } from 'class-validator';
 
 export class CreateBodyEvaluationDto {
+  @IsOptional()
   @IsUUID()
-  gymId!: string;
+  gymId?: string;
 
   @IsUUID()
   clientId!: string;

@@ -15,8 +15,9 @@ class ClinicalDto {
 }
 
 export class CreateAnamnesisDto {
+  @IsOptional()
   @IsUUID()
-  gymId!: string;
+  gymId?: string;
 
   @IsUUID()
   clientId!: string;
