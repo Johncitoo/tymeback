@@ -43,6 +43,7 @@ export class InbodyScansService {
 
   // ---- CREATE ----
   async create(dto: CreateInbodyScanDto) {
+    if (!dto.gymId) throw new BadRequestException('gymId es requerido');
     await this.assertClient(dto.clientId, dto.gymId);
     const author = await this.assertNutriOrAdmin(dto.createdByUserId, dto.gymId);
 
@@ -64,6 +65,7 @@ export class InbodyScansService {
 
   // ---- UPDATE ----
   async update(id: string, dto: UpdateInbodyScanDto) {
+    if (!dto.gymId) throw new BadRequestException('gymId es requerido');
     const row = await this.repo.findOne({ where: { id, gymId: dto.gymId } });
     if (!row) throw new NotFoundException('InBody no encontrado');
 

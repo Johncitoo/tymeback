@@ -43,6 +43,7 @@ export class BodyEvaluationsService {
 
   // ---- CREATE ----
   async create(dto: CreateBodyEvaluationDto) {
+    if (!dto.gymId) throw new BadRequestException('gymId es requerido');
     await this.assertClient(dto.clientId, dto.gymId);
     const author = await this.assertNutriOrAdmin(dto.createdByUserId, dto.gymId);
 
@@ -62,6 +63,7 @@ export class BodyEvaluationsService {
 
   // ---- UPDATE ----
   async update(id: string, dto: UpdateBodyEvaluationDto) {
+    if (!dto.gymId) throw new BadRequestException('gymId es requerido');
     const row = await this.repo.findOne({ where: { id, gymId: dto.gymId } });
     if (!row) throw new NotFoundException('Evaluación no encontrada');
 

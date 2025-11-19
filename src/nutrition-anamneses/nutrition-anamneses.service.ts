@@ -41,6 +41,7 @@ export class NutritionAnamnesesService {
   }
 
   async create(dto: CreateAnamnesisDto, byUserId: string) {
+    if (!dto.gymId) throw new ForbiddenException('gymId es requerido');
     await this.assertCanWrite(byUserId, dto.gymId);
 
     const row = this.repo.create({
@@ -60,6 +61,7 @@ export class NutritionAnamnesesService {
   }
 
   async findAll(q: QueryAnamnesesDto, byUserId: string) {
+    if (!q.gymId) throw new ForbiddenException('gymId es requerido');
     await this.assertCanRead(byUserId, q.gymId, q.clientId);
 
     const qb = this.repo.createQueryBuilder('n').where('n.gym_id = :g', { g: q.gymId });
@@ -87,6 +89,7 @@ export class NutritionAnamnesesService {
   }
 
   async update(id: string, dto: UpdateAnamnesisDto, byUserId: string) {
+    if (!dto.gymId) throw new ForbiddenException('gymId es requerido');
     await this.assertCanWrite(byUserId, dto.gymId);
     const row = await this.repo.findOne({ where: { id, gymId: dto.gymId } });
     if (!row) throw new NotFoundException('Anamnesis no encontrada');
