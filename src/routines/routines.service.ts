@@ -290,6 +290,7 @@ export class RoutinesService {
 
     const [data, total] = await this.assignRepo.findAndCount({
       where,
+      relations: ['routine'], // Incluir datos básicos de la rutina
       order: { assignedAt: 'DESC' },
       skip: q.offset ?? 0,
       take: q.limit ?? 20,
