@@ -34,9 +34,15 @@ async function bootstrap() {
       // Permitir requests sin origin (como Postman o curl)
       if (!origin) return callback(null, true);
       
+      // En desarrollo, permitir cualquier localhost u origen local
+      if (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('192.168.')) {
+        return callback(null, true);
+      }
+      
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.warn('⚠️  CORS bloqueado para:', origin);
         callback(new Error('Not allowed by CORS'));
       }
     },
