@@ -29,6 +29,14 @@ async function bootstrap() {
     ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
     : ['http://localhost:5173'];
 
+  // Agregar dominio personalizado
+  const customDomains = [
+    'https://somostyme.cl',
+    'https://www.somostyme.cl',
+    'http://somostyme.cl',
+    'http://www.somostyme.cl',
+  ];
+
   app.enableCors({
     origin: (origin, callback) => {
       // Permitir requests sin origin (como Postman o curl)
@@ -39,6 +47,12 @@ async function bootstrap() {
         return callback(null, true);
       }
       
+      // Permitir dominios personalizados
+      if (customDomains.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // Permitir orígenes configurados en FRONTEND_URL
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
