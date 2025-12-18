@@ -164,7 +164,8 @@ export class UsersService {
   }
 
   async remove(id: string, gymId: string): Promise<{ id: string }> {
-    const res = await this.repo.softDelete({ id, gymId });
+    // Hard delete para permitir reutilizar emails/RUTs en testing
+    const res = await this.repo.delete({ id, gymId });
     if (!res.affected) throw new NotFoundException('Usuario no encontrado');
     return { id };
   }
