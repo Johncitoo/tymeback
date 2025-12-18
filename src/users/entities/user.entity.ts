@@ -63,7 +63,7 @@ export class User {
   lastName!: string;
 
   // Columna computed (generada automáticamente en BD)
-  @Column('text', { name: 'full_name', insert: false, update: false })
+  @Column({ type: 'text', name: 'full_name', insert: false, update: false })
   fullName!: string;
 
   @Column('text', { nullable: true })

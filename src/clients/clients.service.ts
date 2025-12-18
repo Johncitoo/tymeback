@@ -50,7 +50,8 @@ export class ClientsService {
         const user = await this.usersService.create({
           gymId: dto.gymId,
           role: RoleEnum.CLIENT,
-          fullName: `${dto.firstName} ${dto.lastName}`,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
           email: dto.email ?? '',
           password: 'temporal123', // Debe venir del dto o generar una temporal
           phone: dto.phone,
@@ -172,7 +173,6 @@ export class ClientsService {
     return await this.dataSource.transaction(async (trx) => {
       // 1) Update user (soft validations)
       await this.usersService.update(userId, gymId, {
-        fullName: dto.fullName,
         email: dto.email,
         password: dto.password,
         phone: dto.phone,

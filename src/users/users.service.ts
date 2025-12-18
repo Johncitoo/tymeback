@@ -133,7 +133,8 @@ export class UsersService {
   async update(id: string, gymId: string, dto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id, gymId);
 
-    if (dto.fullName !== undefined) user.fullName = dto.fullName;
+    if (dto.firstName !== undefined) user.firstName = dto.firstName;
+    if (dto.lastName !== undefined) user.lastName = dto.lastName;
     if (dto.role !== undefined) user.role = dto.role;
     if (dto.email !== undefined) user.email = dto.email;
     if (dto.password !== undefined) {

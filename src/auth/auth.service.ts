@@ -92,6 +92,8 @@ export class AuthService {
       gymId: user.gymId,
       role: user.role,
       email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
       fullName: user.fullName,
     };
   }
