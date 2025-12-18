@@ -12,7 +12,9 @@ export interface AuthUser {
   gymId: string;
   role: RoleEnum;
   email: string | null;
-  fullName: string;
+  firstName: string;
+  lastName: string;
+  fullName: string; // computed
 }
 
 @Injectable()
@@ -77,7 +79,9 @@ export class AuthService {
       gymId: user.gymId,
       role: user.role,
       email: user.email,
-      fullName: user.fullName,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: user.fullName, // computed
     };
     return this.jwtService.sign(payload);
   }

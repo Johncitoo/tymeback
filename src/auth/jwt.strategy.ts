@@ -10,7 +10,9 @@ export type JwtPayload = {
   gymId: string;
   role: RoleEnum;
   email: string | null;
-  fullName: string;
+  firstName: string;
+  lastName: string;
+  fullName: string; // computed
   iat?: number;
   exp?: number;
 };
@@ -32,7 +34,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       gymId: payload.gymId,
       role: payload.role,
       email: payload.email,
-      fullName: payload.fullName,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      fullName: payload.fullName, // computed
     };
   }
 }

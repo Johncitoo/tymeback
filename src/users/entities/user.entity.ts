@@ -56,7 +56,14 @@ export class User {
   })
   role!: RoleEnum;
 
-  @Column('text', { name: 'full_name' })
+  @Column('text', { name: 'first_name' })
+  firstName!: string;
+
+  @Column('text', { name: 'last_name' })
+  lastName!: string;
+
+  // Columna computed (generada automáticamente en BD)
+  @Column('text', { name: 'full_name', insert: false, update: false })
   fullName!: string;
 
   @Column('text', { nullable: true })

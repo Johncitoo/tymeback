@@ -40,7 +40,8 @@ export class UsersService {
     const entity = this.repo.create({
       gymId: dto.gymId,
       role: dto.role,
-      fullName: dto.fullName,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
       email: dto.email ?? null,
       hashedPassword: dto.password ? this.hashPassword(dto.password) : null,
       phone: dto.phone ?? null,
