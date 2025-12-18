@@ -13,7 +13,12 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    bodyParser: true,
   });
+
+  // Aumentar límite de body-parser para uploads (10MB)
+  app.use(require('express').json({ limit: '10mb' }));
+  app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
 
   // Global validation pipe
   app.useGlobalPipes(
