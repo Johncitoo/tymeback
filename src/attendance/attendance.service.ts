@@ -41,11 +41,12 @@ export class AttendanceService {
     }
 
     // Evitar duplicados abiertos para el mismo cliente
-    const open = await this.repo.findOne({ where: { clientId: dto.clientId, checkOutAt: IsNull() } });
+    const open = await this.repo.findOne({ where: { clientGymUserId: dto.clientId, checkOutAt: IsNull() } });
     if (open) throw new BadRequestException('El cliente ya tiene una asistencia abierta');
 
     const row = this.repo.create({
-      clientId: dto.clientId,
+      gymId: dto.gymId,
+      clientGymUserId: dto.clientId,
       checkInAt: new Date(),
       checkOutAt: null,
     });
@@ -58,7 +59,7 @@ export class AttendanceService {
     if (!row) throw new NotFoundException('Asistencia no encontrada');
     if (row.checkOutAt) return row;
 
-    if (by.role === RoleEnum.CLIENT && by.id !== row.clientId) {
+    if (by.role === RoleEnum.CLIENT && by.id !== row.clientGymUserId) {
       throw new ForbiddenException('CLIENT solo puede hacer check-out de su propia asistencia');
     }
 
@@ -67,10 +68,9 @@ export class AttendanceService {
   }
 
   async list(q: QueryAttendanceDto) {
-    // Note: attendance table doesn't have gym_id, would need JOIN with clients/users to filter by gym
-    // For now, simplified to just filter by clientId and date range
+    // Note: attendance now has gym_id
     const where: any = {};
-    if (q.clientId) where.clientId = q.clientId;
+    if (q.clientId) where.clientGymUserId = q.clientId;
     if (q.openOnly === 'true') where.checkOutAt = IsNull();
     if (q.from && q.to) where.checkInAt = Between(new Date(q.from), new Date(q.to));
 

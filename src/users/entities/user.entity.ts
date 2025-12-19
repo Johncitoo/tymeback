@@ -45,13 +45,17 @@ export class User {
   @Column('text', { name: 'hashed_password', nullable: true })
   hashedPassword!: string | null;
 
+  // NOTA: Esta columna 'role' ya NO existe en la BD (se movió a gym_users)
+  // Se mantiene en la entidad temporalmente para evitar romper servicios existentes
+  // TODO: Refactorizar todos los servicios para usar gymUser.role en vez de user.role
   @Index()
   @Column({
     type: 'enum',
     enum: RoleEnum,
-    enumName: 'role_enum', // usa el enum de Postgres existente
+    enumName: 'role_enum',
+    select: false, // NO seleccionar por defecto porque causa error en BD
   })
-  role!: RoleEnum;
+  role?: RoleEnum; // Opcional porque no existe en BD
 
   @Column('text', { name: 'first_name' })
   firstName!: string;
