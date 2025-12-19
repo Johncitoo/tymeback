@@ -124,6 +124,12 @@ export class ClientsService {
     // JOIN con gym_users para filtrar por gym
     const qb = this.usersRepo
       .createQueryBuilder('u')
+      .select([
+        'u.id', 'u.email', 'u.firstName', 'u.lastName', 'u.fullName',
+        'u.phone', 'u.rut', 'u.birthDate', 'u.gender', 'u.sex',
+        'u.address', 'u.avatarUrl', 'u.platformRole', 'u.isActive',
+        'u.createdAt', 'u.updatedAt'
+      ])
       .innerJoin('gym_users', 'gu', 'gu.user_id = u.id')
       .innerJoin('clients', 'c', 'c.gym_user_id = gu.id')
       .where('gu.gym_id = :gymId', { gymId: q.gymId })
