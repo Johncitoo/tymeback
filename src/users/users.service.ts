@@ -66,7 +66,7 @@ export class UsersService {
 
     // Usuario nuevo → crear user + gym_user
     const entity = this.repo.create({
-      role: dto.role, // role global (puede ser diferente en cada gym via gym_users)
+      // NOTA: role NO va en users (está en gym_users)
       firstName: dto.firstName,
       lastName: dto.lastName,
       email: dto.email ?? null,
