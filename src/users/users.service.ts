@@ -136,6 +136,12 @@ export class UsersService {
     // JOIN con gym_users para obtener solo usuarios del gym
     const qb = this.repo
       .createQueryBuilder('u')
+      .select([
+        'u.id', 'u.email', 'u.firstName', 'u.lastName', 'u.fullName',
+        'u.phone', 'u.rut', 'u.birthDate', 'u.gender', 'u.sex',
+        'u.address', 'u.avatarUrl', 'u.platformRole', 'u.isActive',
+        'u.createdAt', 'u.updatedAt'
+      ])
       .innerJoin('gym_users', 'gu', 'gu.user_id = u.id')
       .where('gu.gym_id = :gymId', { gymId: q.gymId });
 
