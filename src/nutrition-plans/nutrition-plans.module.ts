@@ -4,9 +4,10 @@ import { NutritionPlansService } from './nutrition-plans.service';
 import { NutritionPlansController } from './nutrition-plans.controller';
 import { NutritionPlan } from './entities/nutrition-plan.entity';
 import { User } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([NutritionPlan, User])],
+  imports: [TypeOrmModule.forFeature([NutritionPlan, User, GymUser])],
   controllers: [NutritionPlansController],
   providers: [NutritionPlansService],
   exports: [TypeOrmModule, NutritionPlansService],

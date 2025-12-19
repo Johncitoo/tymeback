@@ -1,22 +1,26 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtUser } from '../auth/current-user.decorator';
 
 @Controller('payments')
+@UseGuards(JwtAuthGuard)
 export class PaymentsController {
   constructor(private readonly service: PaymentsService) {}
 
   @Post()
-  create(@Body() dto: CreatePaymentDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreatePaymentDto, @CurrentUser() user: JwtUser) {
+    return this.service.create({ ...dto, gymId: user.gymId });
   }
 
   @Get()
   findAll(
-    @Query('gymId') gymId: string,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
+    @Query('limit') limit: number | undefined,
+    @Query('offset') offset: number | undefined,
+    @CurrentUser() user: JwtUser,
   ) {
-    return this.service.findAll(gymId, limit, offset);
+    return this.service.findAll(user.gymId, limit, offset);
   }
 }

@@ -7,6 +7,8 @@ import { JwtStrategy } from './jwt.strategy';
 import { AuthController } from './auth.controller';
 import { User } from '../users/entities/user.entity';
 import { AuthToken } from './entities/auth-token.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
+import { Gym } from '../gyms/entities/gym.entity';
 import { CommunicationsModule } from '../communications/communications.module';
 
 // Tipos de 'ms' que usa jsonwebtoken para expiresIn
@@ -30,7 +32,7 @@ function getExpires(): number | MsStringValue {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, AuthToken]),
+    TypeOrmModule.forFeature([User, AuthToken, GymUser, Gym]),
     PassportModule.register({ defaultStrategy: 'jwt' }), // 👈 recomendado
     JwtModule.register({
       secret: JWT_SECRET,

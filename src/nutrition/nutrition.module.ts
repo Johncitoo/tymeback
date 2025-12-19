@@ -7,6 +7,7 @@ import { BodyEvaluation } from './entities/body-evaluation.entity';
 import { InbodyScan } from './entities/inbody-scan.entity';
 import { NutritionPlan } from './entities/nutrition-plan.entity';
 import { User } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { User } from '../users/entities/user.entity';
       InbodyScan,
       NutritionPlan,
       User,
+      GymUser,
     ]),
   ],
   controllers: [NutritionController],

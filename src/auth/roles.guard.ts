@@ -21,6 +21,12 @@ export class RolesGuard implements CanActivate {
     if (!user?.role) {
       throw new ForbiddenException('No autorizado');
     }
+
+    // SUPER_ADMIN bypasses all role checks (acceso global)
+    if (user.role === RoleEnum.SUPER_ADMIN) {
+      return true;
+    }
+
     if (!requiredRoles.includes(user.role)) {
       throw new ForbiddenException('Rol insuficiente');
     }

@@ -14,6 +14,7 @@ import { CreateOverrideDto } from './dto/create-override.dto';
 import { QueryHoursDto } from './dto/query-hours.dto';
 import { QueryOverridesDto } from './dto/query-overrides.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 const TZ = 'America/Santiago';
 const HHMM = /^\d{2}:\d{2}$/;
@@ -27,14 +28,20 @@ export class GymHoursService {
     private readonly ovRepo: Repository<GymHourOverride>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser)
+    private readonly gymUsersRepo: Repository<GymUser>,
   ) {}
 
   // ---------------- helpers ----------------
   private async assertAdmin(userId: string, gymId: string) {
-    const u = await this.usersRepo.findOne({ where: { id: userId, gymId } });
-    if (!u) throw new NotFoundException('Usuario no pertenece al gimnasio');
-    if (u.role !== RoleEnum.ADMIN) throw new ForbiddenException('Solo ADMIN');
-    return u;
+    const gymUser = await this.gymUsersRepo.findOne({ where: { userId, gymId } });
+    if (!gymUser) throw new NotFoundException('Usuario no pertenece al gimnasio');
+    
+    const u = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+    
+    if (gymUser.role !== RoleEnum.ADMIN) throw new ForbiddenException('Solo ADMIN');
+    return { ...u, role: gymUser.role };
   }
 
   private ensureTimes(isOpen: boolean, openTime?: string | null, closeTime?: string | null) {

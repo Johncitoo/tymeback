@@ -19,22 +19,22 @@ export class RoutinesController {
 
   // ---- routines ----
   @Post()
-  create(@Body() dto: CreateRoutineDto) {
-    return this.service.createRoutine(dto);
+  create(@Body() dto: CreateRoutineDto, @CurrentUser() user: any) {
+    return this.service.createRoutine({ ...dto, gymId: user.gymId });
   }
 
   @Patch(':id')
   update(
     @Param('id') id: string,
-    @Query('gymId') gymId: string,
     @Body() dto: UpdateRoutineDto,
+    @CurrentUser() user: any,
   ) {
-    return this.service.updateRoutine(id, gymId, dto);
+    return this.service.updateRoutine(id, user.gymId, dto);
   }
 
   @Get()
-  list(@Query() q: QueryRoutinesDto) {
-    return this.service.listRoutines(q);
+  list(@Query() q: QueryRoutinesDto, @CurrentUser() user: any) {
+    return this.service.listRoutines({ ...q, gymId: user.gymId });
   }
 
   // ---- assignments ---- (debe ir antes de @Get(':id'))
@@ -49,42 +49,42 @@ export class RoutinesController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Query('gymId') gymId: string) {
-    return this.service.findRoutine(id, gymId);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.findRoutine(id, user.gymId);
   }
 
   @Delete(':id')
-  delete(@Param('id') id: string, @Query('gymId') gymId: string) {
-    return this.service.deleteRoutine(id, gymId);
+  delete(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.deleteRoutine(id, user.gymId);
   }
 
   // ---- days ----
   @Post('days')
-  addDay(@Body() dto: AddDayDto) {
-    return this.service.addDay(dto);
+  addDay(@Body() dto: AddDayDto, @CurrentUser() user: any) {
+    return this.service.addDay({ ...dto, gymId: user.gymId });
   }
 
   @Delete('days/:dayId')
   deleteDay(
     @Param('dayId') dayId: string,
-    @Query('gymId') gymId: string,
+    @CurrentUser() user: any,
   ) {
-    return this.service.deleteDay(dayId, gymId);
+    return this.service.deleteDay(dayId, user.gymId);
   }
 
   // ---- day exercises ----
   @Post('day-exercises')
-  addDayExercise(@Body() dto: AddExerciseDto) {
-    return this.service.addExercise(dto);
+  addDayExercise(@Body() dto: AddExerciseDto, @CurrentUser() user: any) {
+    return this.service.addExercise({ ...dto, gymId: user.gymId });
   }
 
   @Patch('days/:dayId/reorder')
   reorder(
     @Param('dayId') dayId: string,
-    @Query('gymId') gymId: string,
     @Body() dto: ReorderDayExercisesDto,
+    @CurrentUser() user: any,
   ) {
-    return this.service.reorderDayExercises(dayId, gymId, dto);
+    return this.service.reorderDayExercises(dayId, user.gymId, dto);
   }
 
   // ---- assignments ----
@@ -104,12 +104,12 @@ export class RoutinesController {
   }
 
   @Patch('assignments/:id/deactivate')
-  deactivate(@Param('id') id: string, @Query('gymId') gymId: string) {
-    return this.service.deactivateAssignment(id, gymId);
+  deactivate(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.deactivateAssignment(id, user.gymId);
   }
 
   @Patch('assignments/:id/activate')
-  activate(@Param('id') id: string, @Query('gymId') gymId: string) {
-    return this.service.activateAssignment(id, gymId);
+  activate(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.activateAssignment(id, user.gymId);
   }
 }

@@ -5,6 +5,8 @@ import { Repository, LessThan } from 'typeorm';
 import * as crypto from 'crypto';
 import { User, RoleEnum } from '../users/entities/user.entity';
 import { AuthToken, TokenTypeEnum } from './entities/auth-token.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
+import { Gym } from '../gyms/entities/gym.entity';
 import { CommunicationsService } from '../communications/communications.service';
 
 export interface AuthUser {
@@ -21,6 +23,8 @@ export interface AuthUser {
 export class AuthService {
   constructor(
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
+    @InjectRepository(Gym) private readonly gymsRepo: Repository<Gym>,
     @InjectRepository(AuthToken) private readonly tokensRepo: Repository<AuthToken>,
     private readonly jwtService: JwtService,
     private readonly communicationsService: CommunicationsService,
@@ -49,35 +53,59 @@ export class AuthService {
     return crypto.timingSafeEqual(Buffer.from(calc, 'hex'), Buffer.from(hash, 'hex'));
   }
 
-  private async findByLogin(gymId: string, login: string) {
+  private async findByLogin(login: string): Promise<User | null> {
     const normalized = (login || '').trim().toLowerCase();
-    // intentar por email primero; si no, por RUT (case-insensitive)
-    let user = await this.usersRepo.findOne({ where: { gymId, email: normalized } });
+    // Buscar usuario global por email o RUT (sin gymId)
+    let user = await this.usersRepo.findOne({ where: { email: normalized } });
     if (!user) {
       user = await this.usersRepo
         .createQueryBuilder('u')
-        .where('u.gym_id = :gymId', { gymId })
-        .andWhere('LOWER(u.rut) = LOWER(:rut)', { rut: login })
+        .where('LOWER(u.rut) = LOWER(:rut)', { rut: login })
         .getOne();
     }
     return user;
   }
 
-  async validateUser(gymId: string, login: string, password: string): Promise<User> {
-    const user = await this.findByLogin(gymId, login);
+  /**
+   * Valida credenciales multi-gym:
+   * 1. Resuelve gymSlug → gym
+   * 2. Busca usuario global por email/rut
+   * 3. Verifica password
+   * 4. Valida membership en gym_users
+   */
+  async validateUser(gymSlug: string, login: string, password: string): Promise<{ user: User; gymUser: GymUser; gymId: string }> {
+    // 1. Resolver gymSlug → gym
+    const gym = await this.gymsRepo.findOne({ where: { slug: gymSlug, isActive: true } });
+    if (!gym) {
+      throw new UnauthorizedException('Gimnasio no encontrado o inactivo');
+    }
+
+    // 2. Buscar usuario global
+    const user = await this.findByLogin(login);
     if (!user || !user.isActive || !user.hashedPassword) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
+
+    // 3. Verificar password
     const ok = this.verifyPbkdf2(password, user.hashedPassword);
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
-    return user;
+
+    // 4. Verificar membership en gym_users
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { gymId: gym.id, userId: user.id, isActive: true },
+    });
+    if (!gymUser) {
+      throw new UnauthorizedException('Usuario no tiene acceso a este gimnasio');
+    }
+
+    return { user, gymUser, gymId: gym.id };
   }
 
-  signToken(user: User) {
+  signToken(user: User, gymId: string, role: RoleEnum) {
     const payload = {
       sub: user.id,
-      gymId: user.gymId,
-      role: user.role,
+      gymId: gymId, // Del gym_user
+      role: role,   // Del gym_user (puede ser diferente por gym)
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -86,11 +114,11 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  toAuthUser(user: User): AuthUser {
+  toAuthUser(user: User, gymId: string, role: RoleEnum): AuthUser {
     return {
       id: user.id,
-      gymId: user.gymId,
-      role: user.role,
+      gymId: gymId,
+      role: role,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -98,31 +126,28 @@ export class AuthService {
     };
   }
 
-  async getProfile(userId: string, gymId: string): Promise<User> {
-    const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
+  async getProfile(userId: string): Promise<User> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
     return user;
   }
 
-  async updateProfile(userId: string, gymId: string, dto: any): Promise<User> {
-    const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
+  async updateProfile(userId: string, dto: any): Promise<User> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
-    // Actualizar fullName si se proporciona firstName o lastName
-    if (dto.firstName !== undefined || dto.lastName !== undefined) {
-      const firstName = dto.firstName !== undefined ? dto.firstName : '';
-      const lastName = dto.lastName !== undefined ? dto.lastName : '';
-      user.fullName = `${firstName} ${lastName}`.trim();
-    }
+    // fullName ya es computed en BD, no necesitamos actualizarlo manualmente
 
+    if (dto.firstName !== undefined) user.firstName = dto.firstName;
+    if (dto.lastName !== undefined) user.lastName = dto.lastName;
     if (dto.email !== undefined) user.email = dto.email;
     if (dto.phone !== undefined) user.phone = dto.phone;
 
     return this.usersRepo.save(user);
   }
 
-  async changePassword(userId: string, gymId: string, currentPassword: string, newPassword: string): Promise<void> {
-    const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
     // Verificar contraseña actual

@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, ILike, IsNull, Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
 import { EmergencyContact } from './entities/emergency-contact.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { QueryClientsDto } from './dto/query-clients.dto';
@@ -23,61 +24,77 @@ export class ClientsService {
     private readonly contactsRepo: Repository<EmergencyContact>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser)
+    private readonly gymUsersRepo: Repository<GymUser>,
     private readonly usersService: UsersService,
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(dto: CreateClientDto) {
+  async create(dto: CreateClientDto, gymId: string) {
     console.log('🔵 ClientsService.create - START');
-    console.log('🔵 DTO:', dto);
+    console.log('🔵 DTO:', dto, 'gymId:', gymId);
     
-    // Validar trainer/nutritionist pertenecen al mismo gym y rol correcto (si vienen)
-    const validateStaff = async (id?: string | null, role?: RoleEnum, gymId?: string) => {
-      if (!id || !gymId) return null;
-      const u = await this.usersRepo.findOne({ where: { id: id as string, gymId } });
-      if (!u) throw new NotFoundException(`Usuario staff no encontrado (${id})`);
-      if (role && u.role !== role) {
-        throw new ConflictException(`El usuario ${id} no es ${role}`);
+    // Helper: Obtener gym_user_id de un usuario (trainer/nutritionist)
+    const getGymUserId = async (userId: string, role?: RoleEnum): Promise<string> => {
+      const user = await this.usersService.findOne(userId, gymId);
+      if (!user) throw new NotFoundException(`Usuario staff no encontrado (${userId})`);
+      
+      // Obtener gym_user_id
+      const gymUser = await this.gymUsersRepo.findOne({
+        where: { userId: user.id, gymId },
+      });
+      if (!gymUser) throw new NotFoundException(`Usuario no pertenece a este gimnasio`);
+      
+      // Validar rol si se especifica
+      if (role && gymUser.role !== role) {
+        throw new ConflictException(`El usuario ${userId} no es ${role}`);
       }
-      return u.id;
+      
+      return gymUser.id;
     };
 
     console.log('🔵 Starting transaction...');
     try {
       const result = await this.dataSource.transaction(async (trx) => {
         console.log('🔵 Inside transaction - creating user...');
-        // 1) Crear usuario con rol CLIENT
+        
+        // 1) Crear usuario con rol CLIENT (crea user + gym_user)
         const user = await this.usersService.create({
-          gymId: dto.gymId,
           role: RoleEnum.CLIENT,
           firstName: dto.firstName,
           lastName: dto.lastName,
           email: dto.email ?? '',
-          password: 'temporal123', // Debe venir del dto o generar una temporal
+          password: 'temporal123',
           phone: dto.phone,
           rut: dto.rut,
           birthDate: dto.birthDate,
-          gender: dto.gender as any, // Conversión de GenderIdentityEnum a GenderEnum
+          gender: dto.gender as any,
           sex: dto.biologicalSex as any,
           address: dto.address,
           avatarUrl: dto.avatarUrl,
           isActive: true,
-        });
+        }, gymId);
 
         console.log('🔵 User created:', user.id);
 
-        // 2) Crear registro en clients
+        // 2) Obtener gym_user_id del cliente recién creado
+        const gymUser = await trx.getRepository(GymUser).findOne({
+          where: { userId: user.id, gymId },
+        });
+        if (!gymUser) throw new Error('gym_user no fue creado');
+
+        // 3) Crear registro en clients con gym_user_id
         const client = this.clientsRepo.create({
-          userId: user.id,
-          trainerId: await validateStaff(dto.trainerId, RoleEnum.TRAINER, dto.gymId),
-          nutritionistId: null,
+          gymUserId: gymUser.id,
+          trainerGymUserId: dto.trainerId ? await getGymUserId(dto.trainerId, RoleEnum.TRAINER) : null,
+          nutritionistGymUserId: null,
           privateSessionsNote: null,
         });
         await trx.getRepository(Client).save(client);
         
         console.log('🔵 Client record created');
 
-        // 3) Insertar contactos (si vienen)
+        // 4) Insertar contactos (si vienen) - usan user.id (global)
         const emergencyContacts: any[] = [];
         // if (dto.emergencyContacts?.length) {
         //   const rows = dto.emergencyContacts.map((c) =>
@@ -87,7 +104,6 @@ export class ClientsService {
         //   emergencyContacts = rows;
         // }
 
-        // Respuesta combinada mínima
         return {
           user,
           client,
@@ -105,25 +121,41 @@ export class ClientsService {
   }
 
   async findAll(q: QueryClientsDto) {
-    // Simplificado: buscar users con role CLIENT y luego filtrar
-    const where: any = { 
-      role: RoleEnum.CLIENT,
-      deletedAt: IsNull() 
-    };
-    
-    // TODO: Filtrar por gymId cuando esté disponible en el contexto
-    if (q.gymId) where.gymId = q.gymId;
-    if (typeof q.isActive === 'boolean') where.isActive = q.isActive;
+    // JOIN con gym_users para filtrar por gym
+    const qb = this.usersRepo
+      .createQueryBuilder('u')
+      .innerJoin('gym_users', 'gu', 'gu.user_id = u.id')
+      .innerJoin('clients', 'c', 'c.gym_user_id = gu.id')
+      .where('gu.gym_id = :gymId', { gymId: q.gymId })
+      .andWhere('gu.role = :role', { role: RoleEnum.CLIENT })
+      .andWhere('u.deleted_at IS NULL');
 
-    const qb = this.usersRepo.createQueryBuilder('u').where(where);
+    // Filtro por isActive (gym_users.is_active)
+    if (typeof q.isActive === 'boolean') {
+      qb.andWhere('gu.is_active = :isActive', { isActive: q.isActive });
+    }
 
     // Filtro por búsqueda de texto
     if (q.q) {
       const like = `%${q.q}%`;
       qb.andWhere(
-        '(u.full_name ILIKE :like OR u.email ILIKE :like OR u.rut ILIKE :like OR u.phone ILIKE :like)',
+        '(u.first_name ILIKE :like OR u.last_name ILIKE :like OR u.email ILIKE :like OR u.rut ILIKE :like OR u.phone ILIKE :like)',
         { like },
       );
+    }
+
+    // Filtro por trainerId
+    if (q.trainerId) {
+      // Obtener gym_user_id del trainer
+      const trainerGymUser = await this.gymUsersRepo.findOne({
+        where: { userId: q.trainerId, gymId: q.gymId },
+      });
+      if (trainerGymUser) {
+        qb.andWhere('c.trainer_gym_user_id = :trainerGymUserId', { trainerGymUserId: trainerGymUser.id });
+      } else {
+        // Si el trainer no existe en este gym, retornar vacío
+        return { data: [], total: 0 };
+      }
     }
 
     const [data, total] = await qb
@@ -132,47 +164,65 @@ export class ClientsService {
       .take(q.limit)
       .getManyAndCount();
 
-    // Adjunta info de client (trainerId/nutritionistId) en bloque
-    const ids = data.map((u) => u.id);
-    
-    let clientRows: Client[] = [];
-    if (ids.length > 0) {
-      const qbClients = this.clientsRepo.createQueryBuilder('c');
-      qbClients.where('c.userId IN (:...ids)', { ids });
-      
-      // Si se filtró por trainerId, también filtrar aquí
-      if (q.trainerId) {
-        qbClients.andWhere('c.trainerId = :tid', { tid: q.trainerId });
-      }
-      
-      clientRows = await qbClients.getMany();
-    }
-    
-    const byId = new Map(clientRows.map((c) => [c.userId, c]));
-    const result = data.map((u) => ({
-      ...u,
-      client: byId.get(u.id) || null,
-    }));
+    // Adjuntar info de client para cada user
+    const userIds = data.map((u) => u.id);
+    const gymUsers = await this.gymUsersRepo.find({
+      where: { userId: userIds as any, gymId: q.gymId },
+    });
+    const gymUserByUserId = new Map(gymUsers.map((gu) => [gu.userId, gu]));
+
+    const clientRows = await this.clientsRepo.find({
+      where: { gymUserId: gymUsers.map((gu) => gu.id) as any },
+    });
+    const clientByGymUserId = new Map(clientRows.map((c) => [c.gymUserId, c]));
+
+    const result = data.map((u) => {
+      const gymUser = gymUserByUserId.get(u.id);
+      const client = gymUser ? clientByGymUserId.get(gymUser.id) : null;
+      return { ...u, client };
+    });
 
     return { data: result, total };
   }
 
   async findOne(userId: string, gymId: string) {
-    const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
-    if (!user) throw new NotFoundException('Cliente no encontrado');
+    // Resolver ambiguamente: userId puede ser user.id o gym_user.id
+    let gymUser = await this.gymUsersRepo.findOne({
+      where: [
+        { id: userId, gymId },           // Si userId es gym_user_id
+        { userId: userId, gymId },       // Si userId es user_id (legacy)
+      ],
+    });
 
-    const client = await this.clientsRepo.findOne({ where: { userId } });
+    if (!gymUser) throw new NotFoundException('Cliente no encontrado en este gimnasio');
+
+    // Obtener user global
+    const user = await this.usersRepo.findOne({ where: { id: gymUser.userId } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    // Obtener client
+    const client = await this.clientsRepo.findOne({ where: { gymUserId: gymUser.id } });
     if (!client) throw new NotFoundException('Ficha de cliente no encontrada');
 
-    const contacts = await this.contactsRepo.find({ where: { clientId: userId } });
+    // Emergency contacts usan user.id (global)
+    const contacts = await this.contactsRepo.find({ where: { clientId: gymUser.userId } });
 
     return { user, client, emergencyContacts: contacts };
   }
 
   async update(userId: string, gymId: string, dto: UpdateClientDto) {
     return await this.dataSource.transaction(async (trx) => {
-      // 1) Update user (soft validations)
-      await this.usersService.update(userId, gymId, {
+      // Resolver gym_user (acepta user_id o gym_user_id)
+      let gymUser = await trx.getRepository(GymUser).findOne({
+        where: [
+          { id: userId, gymId },
+          { userId: userId, gymId },
+        ],
+      });
+      if (!gymUser) throw new NotFoundException('Cliente no encontrado');
+
+      // 1) Update user (global)
+      await this.usersService.update(gymUser.userId, gymId, {
         email: dto.email,
         password: dto.password,
         phone: dto.phone,
@@ -186,57 +236,115 @@ export class ClientsService {
       });
 
       // 2) Update client
-      const client = await trx.getRepository(Client).findOne({ where: { userId } });
+      const client = await trx.getRepository(Client).findOne({ where: { gymUserId: gymUser.id } });
       if (!client) throw new NotFoundException('Ficha de cliente no encontrada');
 
-      if (dto.trainerId !== undefined) client.trainerId = dto.trainerId;
-      if (dto.nutritionistId !== undefined) client.nutritionistId = dto.nutritionistId;
+      // Actualizar trainer_gym_user_id si viene
+      if (dto.trainerId !== undefined) {
+        if (dto.trainerId) {
+          const trainerGymUser = await trx.getRepository(GymUser).findOne({
+            where: { userId: dto.trainerId, gymId },
+          });
+          if (!trainerGymUser) throw new NotFoundException('Trainer no encontrado en este gimnasio');
+          client.trainerGymUserId = trainerGymUser.id;
+        } else {
+          client.trainerGymUserId = null;
+        }
+      }
+
+      // Actualizar nutritionist_gym_user_id si viene
+      if (dto.nutritionistId !== undefined) {
+        if (dto.nutritionistId) {
+          const nutriGymUser = await trx.getRepository(GymUser).findOne({
+            where: { userId: dto.nutritionistId, gymId },
+          });
+          if (!nutriGymUser) throw new NotFoundException('Nutricionista no encontrado en este gimnasio');
+          client.nutritionistGymUserId = nutriGymUser.id;
+        } else {
+          client.nutritionistGymUserId = null;
+        }
+      }
+
       if (dto.privateSessionsNote !== undefined) client.privateSessionsNote = dto.privateSessionsNote;
 
       await trx.getRepository(Client).save(client);
 
-      // 3) Reemplazar contactos si vienen
+      // 3) Reemplazar contactos si vienen (usan user.id global)
       if (dto.emergencyContacts) {
-        await trx.getRepository(EmergencyContact).delete({ clientId: userId });
+        await trx.getRepository(EmergencyContact).delete({ clientId: gymUser.userId });
         if (dto.emergencyContacts.length) {
           const rows = dto.emergencyContacts.map((c) =>
-            trx.getRepository(EmergencyContact).create({ clientId: userId, ...c }),
+            trx.getRepository(EmergencyContact).create({ clientId: gymUser.userId, ...c }),
           );
           await trx.getRepository(EmergencyContact).save(rows);
         }
       }
 
-      const contacts = await trx.getRepository(EmergencyContact).find({ where: { clientId: userId } });
-      const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
+      const contacts = await trx.getRepository(EmergencyContact).find({ where: { clientId: gymUser.userId } });
+      const user = await this.usersRepo.findOne({ where: { id: gymUser.userId } });
 
       return { user, client, emergencyContacts: contacts };
     });
   }
 
   async remove(userId: string, gymId: string) {
-    // Soft-delete de users; mantiene clients/emergency_contacts
-    const res = await this.usersRepo.softDelete({ id: userId, gymId });
-    if (!res.affected) throw new NotFoundException('Cliente no encontrado');
+    // Resolver gym_user (acepta user_id o gym_user_id)
+    let gymUser = await this.gymUsersRepo.findOne({
+      where: [
+        { id: userId, gymId },
+        { userId: userId, gymId },
+      ],
+    });
+    if (!gymUser) throw new NotFoundException('Cliente no encontrado en este gimnasio');
+
+    // Eliminar client (CASCADE debería eliminar gym_user automáticamente si está configurado)
+    await this.clientsRepo.delete({ gymUserId: gymUser.id });
+
+    // Eliminar gym_user membership
+    await this.gymUsersRepo.delete(gymUser.id);
+
+    // OPCIONAL: Si user no tiene más memberships, eliminar user global
+    const otherMemberships = await this.gymUsersRepo.count({ where: { userId: gymUser.userId } });
+    if (otherMemberships === 0) {
+      await this.usersRepo.softDelete(gymUser.userId);
+    }
+
     return { id: userId };
   }
 
   // --------- Emergency contacts helpers (opcionales) ---------
 
   async listContacts(userId: string, gymId: string) {
-    const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
-    if (!user) throw new NotFoundException('Cliente no encontrado');
-    return this.contactsRepo.find({ where: { clientId: userId }, order: { createdAt: 'DESC' } });
+    // Validar membership via gym_users
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: [
+        { id: userId, gymId },
+        { userId: userId, gymId },
+      ],
+    });
+    if (!gymUser) throw new NotFoundException('Cliente no encontrado en este gimnasio');
+
+    // Emergency contacts usan user.id (global)
+    return this.contactsRepo.find({ where: { clientId: gymUser.userId }, order: { createdAt: 'DESC' } });
   }
 
   async replaceContacts(userId: string, gymId: string, items: EmergencyContact[]) {
-    const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
-    if (!user) throw new NotFoundException('Cliente no encontrado');
-    await this.contactsRepo.delete({ clientId: userId });
+    // Validar membership via gym_users
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: [
+        { id: userId, gymId },
+        { userId: userId, gymId },
+      ],
+    });
+    if (!gymUser) throw new NotFoundException('Cliente no encontrado en este gimnasio');
+
+    // Emergency contacts usan user.id (global)
+    await this.contactsRepo.delete({ clientId: gymUser.userId });
     if (items?.length) {
-      const rows = items.map((c) => this.contactsRepo.create({ clientId: userId, fullName: (c as any).fullName, phone: (c as any).phone, relation: (c as any).relation }));
+      const rows = items.map((c) => this.contactsRepo.create({ clientId: gymUser.userId, fullName: (c as any).fullName, phone: (c as any).phone, relation: (c as any).relation }));
       await this.contactsRepo.save(rows);
     }
-    return this.contactsRepo.find({ where: { clientId: userId } });
+    return this.contactsRepo.find({ where: { clientId: gymUser.userId } });
   }
 
   // TEMPORAL: Método para eliminar todos los clientes (SOLO DESARROLLO)
@@ -246,15 +354,26 @@ export class ClientsService {
     }
 
     try {
-      // Eliminar todos los usuarios con role CLIENT del gym especificado
-      const result = await this.usersRepo.delete({ 
-        role: RoleEnum.CLIENT,
-        gymId 
+      // Obtener todos los gym_users con role CLIENT de este gym
+      const gymUsers = await this.gymUsersRepo.find({
+        where: { gymId, role: RoleEnum.CLIENT },
       });
+
+      // Eliminar clients y gym_users
+      for (const gu of gymUsers) {
+        await this.clientsRepo.delete({ gymUserId: gu.id });
+        await this.gymUsersRepo.delete(gu.id);
+        
+        // Si user no tiene más memberships, eliminar user
+        const otherMemberships = await this.gymUsersRepo.count({ where: { userId: gu.userId } });
+        if (otherMemberships === 0) {
+          await this.usersRepo.softDelete(gu.userId);
+        }
+      }
 
       return { 
         message: 'All clients deleted successfully',
-        deleted: result.affected || 0
+        deleted: gymUsers.length
       };
     } catch (error) {
       console.error('Error deleting all clients:', error);

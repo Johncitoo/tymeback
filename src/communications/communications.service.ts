@@ -24,6 +24,7 @@ import { User, RoleEnum } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Plan } from '../plans/entities/plan.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 @Injectable()
 export class CommunicationsService {
@@ -34,6 +35,7 @@ export class CommunicationsService {
     @InjectRepository(EmailLog) private readonly logRepo: Repository<EmailLog>,
     @InjectRepository(MembershipReminder) private readonly remRepo: Repository<MembershipReminder>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
     @InjectRepository(Membership) private readonly memRepo: Repository<Membership>,
     @InjectRepository(Plan) private readonly plansRepo: Repository<Plan>,
     private readonly mailer: MailerService,
@@ -161,9 +163,15 @@ export class CommunicationsService {
     gymId: string,
     filters: any,
   ): Promise<Array<{ clientId: string | null; email: string }>> {
-    // Por simplicidad, sacamos emails desde users CLIENT
-    const whereUser: any = { gymId, role: RoleEnum.CLIENT, isActive: true };
-    const users = await this.usersRepo.find({ where: whereUser });
+    // Obtener usuarios con membresía CLIENT en este gimnasio via gym_users
+    const gymUsers = await this.gymUsersRepo.find({
+      where: { gymId, role: RoleEnum.CLIENT, isActive: true },
+      select: ['userId'],
+    });
+    const userIds = gymUsers.map(gu => gu.userId);
+    if (userIds.length === 0) return [];
+
+    const users = await this.usersRepo.find({ where: { id: In(userIds) } });
 
     // Asegurar email:string (no null) con type guard
     const candidates: Array<{ clientId: string; email: string }> = users
@@ -273,12 +281,12 @@ export class CommunicationsService {
         ));
         const targetISO = target.toISOString().slice(0, 10);
 
-        // Primero obtenemos los clientIds del gimnasio
-        const gymClients = await this.usersRepo.find({
+        // Primero obtenemos los clientIds del gimnasio via gym_users
+        const gymClients = await this.gymUsersRepo.find({
           where: { gymId, role: RoleEnum.CLIENT },
-          select: ['id'],
+          select: ['userId'],
         });
-        const clientIds = gymClients.map(u => u.id);
+        const clientIds = gymClients.map(gu => gu.userId);
         if (clientIds.length === 0) continue;
 
         // membresías que vencen ese día para clientes de este gimnasio
@@ -305,8 +313,14 @@ export class CommunicationsService {
         for (const m of mems) {
           if (sentSet.has(m.id)) continue;
 
+          // Validar que el usuario pertenece al gimnasio
+          const gymUser = await this.gymUsersRepo.findOne({
+            where: { userId: m.clientId, gymId, role: RoleEnum.CLIENT },
+          });
+          if (!gymUser) continue;
+
           const user = await this.usersRepo.findOne({
-            where: { id: m.clientId, gymId, role: RoleEnum.CLIENT },
+            where: { id: m.clientId },
             select: ['id', 'fullName', 'email'],
           });
           if (!user?.email) continue;

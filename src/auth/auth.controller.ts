@@ -11,11 +11,11 @@ export class AuthController {
 
   @Post('login')
   async login(@Body() dto: LoginDto) {
-    const user = await this.auth.validateUser(dto.gymId, dto.login, dto.password);
-    const accessToken = this.auth.signToken(user);
+    const { user, gymUser, gymId } = await this.auth.validateUser(dto.gymSlug, dto.login, dto.password);
+    const accessToken = this.auth.signToken(user, gymId, gymUser.role);
     return {
       access_token: accessToken,
-      user: this.auth.toAuthUser(user),
+      user: this.auth.toAuthUser(user, gymId, gymUser.role),
     };
   }
 
@@ -28,19 +28,19 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   getProfile(@CurrentUser() user: JwtUser) {
-    return this.auth.getProfile(user.sub, user.gymId);
+    return this.auth.getProfile(user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
   @Patch('profile')
   updateProfile(@CurrentUser() user: JwtUser, @Body() dto: any) {
-    return this.auth.updateProfile(user.sub, user.gymId, dto);
+    return this.auth.updateProfile(user.sub, dto);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('change-password')
   changePassword(@CurrentUser() user: JwtUser, @Body() dto: { currentPassword: string; newPassword: string }) {
-    return this.auth.changePassword(user.sub, user.gymId, dto.currentPassword, dto.newPassword);
+    return this.auth.changePassword(user.sub, dto.currentPassword, dto.newPassword);
   }
 
   // ---------- Activación de Cuenta ----------

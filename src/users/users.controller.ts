@@ -22,70 +22,60 @@ export class UsersController {
   @Post()
   @Roles(RoleEnum.ADMIN)
   create(@Body() dto: CreateUserDto, @CurrentUser() user: JwtUser) {
-    dto.gymId = dto.gymId ?? user.gymId;
-    if (dto.gymId !== user.gymId) throw new ForbiddenException('gymId inválido');
-    return this.usersService.create(dto);
+    // gymId viene del JWT (trusted source)
+    return this.usersService.create(dto, user.gymId);
   }
 
   // Listar — ADMIN
   @Get()
   @Roles(RoleEnum.ADMIN)
   findAll(@Query() qry: QueryUsersDto, @CurrentUser() user: JwtUser) {
-    qry.gymId = qry.gymId ?? user.gymId;
-    if (qry.gymId !== user.gymId) throw new ForbiddenException('gymId inválido');
-    return this.usersService.findAll(qry);
+    // gymId viene del JWT (trusted source)
+    return this.usersService.findAll({ ...qry, gymId: user.gymId });
   }
 
   // Obtener — ADMIN o el propio usuario
   @Get(':id')
-  findOne(@Param('id') id: string, @Query('gymId') gymId: string, @CurrentUser() user: JwtUser) {
-    const gid = gymId ?? user.gymId;
-    if (gid !== user.gymId) throw new ForbiddenException('gymId inválido');
+  findOne(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    // Validar permisos: ADMIN o el propio usuario
     if (id !== user.sub && user.role !== RoleEnum.ADMIN) {
       throw new ForbiddenException('Solo ADMIN o el propio usuario');
     }
-    return this.usersService.findOne(id, gid);
+    // gymId viene del JWT (trusted source)
+    return this.usersService.findOne(id, user.gymId);
   }
 
   // Actualizar — ADMIN o el propio usuario (solo ciertos campos)
   @Patch(':id')
-  update(@Param('id') id: string, @Query('gymId') gymId: string, @Body() dto: UpdateUserDto, @CurrentUser() user: JwtUser) {
-    const gid = gymId ?? user.gymId;
-    if (gid !== user.gymId) throw new ForbiddenException('gymId inválido');
-    
-    // Si no es ADMIN, solo puede actualizar sus propios datos
+  update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user: JwtUser) {
+    // Validar permisos: ADMIN o el propio usuario
     if (id !== user.sub && user.role !== RoleEnum.ADMIN) {
       throw new ForbiddenException('Solo ADMIN o el propio usuario');
     }
-    
-    return this.usersService.update(id, gid, dto);
+    // gymId viene del JWT (trusted source)
+    return this.usersService.update(id, user.gymId, dto);
   }
 
   // Actualizar avatar — ADMIN o el propio usuario
   @Patch(':id/avatar')
   updateAvatar(
     @Param('id') id: string,
-    @Query('gymId') gymId: string,
     @Body('avatarUrl') avatarUrl: string,
     @CurrentUser() user: JwtUser
   ) {
-    const gid = gymId ?? user.gymId;
-    if (gid !== user.gymId) throw new ForbiddenException('gymId inválido');
-    
-    // Solo el propio usuario o ADMIN puede cambiar el avatar
+    // Validar permisos: ADMIN o el propio usuario
     if (id !== user.sub && user.role !== RoleEnum.ADMIN) {
       throw new ForbiddenException('Solo ADMIN o el propio usuario');
     }
-    
-    return this.usersService.updateAvatar(id, gid, avatarUrl);
+    // gymId viene del JWT (trusted source)
+    return this.usersService.updateAvatar(id, user.gymId, avatarUrl);
   }
 
   // Eliminar — ADMIN
   @Delete(':id')
   @Roles(RoleEnum.ADMIN)
-  remove(@Param('id') id: string, @Query('gymId') gymId: string, @CurrentUser() user: JwtUser) {
-    const gid = gymId ?? user.gymId;
-    if (gid !== user.gymId) throw new ForbiddenException('gymId inválido');
-    return this.usersService.remove(id, gid);
+  remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    // gymId viene del JWT (trusted source)
+    return this.usersService.remove(id, user.gymId);
   }
 }

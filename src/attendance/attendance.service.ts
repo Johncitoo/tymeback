@@ -6,18 +6,29 @@ import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
 import { QueryAttendanceDto } from './dto/query-attendance.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     @InjectRepository(Attendance) private readonly repo: Repository<Attendance>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
   ) {}
 
   private async assertUserInGym(userId: string, gymId: string) {
-    const u = await this.usersRepo.findOne({ where: { id: userId, gymId } });
-    if (!u) throw new NotFoundException('Usuario no pertenece al gimnasio');
-    return u;
+    // Validar membership via gym_users
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId, gymId },
+    });
+    if (!gymUser) throw new NotFoundException('Usuario no pertenece al gimnasio');
+
+    // Obtener user
+    const u = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+
+    // Retornar user con role del gym_user
+    return { ...u, role: gymUser.role };
   }
 
   async checkIn(dto: CheckInDto) {

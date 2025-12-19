@@ -14,12 +14,8 @@ import { GenderEnum, RoleEnum, SexEnum } from '../entities/user.entity';
 import { IsValidRut } from './rut.validator';
 
 export class CreateUserDto {
-  // Requerimos gymId por ahora (luego lo inyectaremos desde JWT/guard)
-  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
-    message: 'gymId must be a valid UUID format'
-  })
-  gymId!: string;
-
+  // gymId se inyecta desde req.user.gymId (del JWT del admin)
+  
   @IsEnum(RoleEnum)
   role!: RoleEnum;
 

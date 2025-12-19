@@ -1,49 +1,53 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ExercisesService } from './exercises.service';
 import { CreateExerciseDto } from './dto/create-exercise.dto';
 import { UpdateExerciseDto } from './dto/update-exercise.dto';
 import { QueryExercisesDto } from './dto/query-exercises.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtUser } from '../auth/current-user.decorator';
 
 @Controller('exercises')
+@UseGuards(JwtAuthGuard)
 export class ExercisesController {
   constructor(private readonly service: ExercisesService) {}
 
   @Post()
-  create(@Body() dto: CreateExerciseDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreateExerciseDto, @CurrentUser() user: JwtUser) {
+    return this.service.create({ ...dto, gymId: user.gymId });
   }
 
   @Get()
-  findAll(@Query() q: QueryExercisesDto) {
-    return this.service.findAll(q);
+  findAll(@Query() q: QueryExercisesDto, @CurrentUser() user: JwtUser) {
+    return this.service.findAll({ ...q, gymId: user.gymId });
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Query('gymId') gymId: string) {
-    return this.service.findOne(id, gymId);
+  findOne(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.service.findOne(id, user.gymId);
   }
 
   @Patch(':id')
   update(
     @Param('id') id: string,
-    @Query('gymId') gymId: string,
     @Body() dto: UpdateExerciseDto,
+    @CurrentUser() user: JwtUser,
   ) {
-    return this.service.update(id, gymId, dto);
+    return this.service.update(id, user.gymId, dto);
   }
 
   @Patch(':id/activate')
-  activate(@Param('id') id: string, @Query('gymId') gymId: string) {
-    return this.service.activate(id, gymId);
+  activate(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.service.activate(id, user.gymId);
   }
 
   @Patch(':id/deactivate')
-  deactivate(@Param('id') id: string, @Query('gymId') gymId: string) {
-    return this.service.deactivate(id, gymId);
+  deactivate(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.service.deactivate(id, user.gymId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Query('gymId') gymId: string) {
-    return this.service.remove(id, gymId);
+  remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.service.remove(id, user.gymId);
   }
 }

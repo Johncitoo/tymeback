@@ -11,6 +11,7 @@ import { EmailLog } from './entities/email-log.entity';
 import { MembershipReminder } from './entities/membership-reminder.entity';
 import { MailerModule } from './mailer/mailer.module';
 import { User } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Plan } from '../plans/entities/plan.entity';
 
@@ -23,6 +24,7 @@ import { Plan } from '../plans/entities/plan.entity';
       EmailLog,
       MembershipReminder,
       User,
+      GymUser,
       Membership,
       Plan,
     ]),

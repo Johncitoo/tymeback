@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Payment, PaymentMethodEnum } from './entities/payment.entity';
 import { PaymentItem } from './entities/payment-item.entity';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { Plan } from '../plans/entities/plan.entity';
 import { MembershipsService } from '../memberships/memberships.service';
 import { CommunicationsService } from '../communications/communications.service';
@@ -21,25 +22,35 @@ export class PaymentsService {
     @InjectRepository(Payment) private readonly repo: Repository<Payment>,
     @InjectRepository(PaymentItem) private readonly itemsRepo: Repository<PaymentItem>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
     @InjectRepository(Plan) private readonly plansRepo: Repository<Plan>,
     private readonly memberships: MembershipsService,
     private readonly commsService: CommunicationsService,
   ) {}
 
   private async assertAdmin(byUserId: string, gymId: string) {
-    const u = await this.usersRepo.findOne({ where: { id: byUserId, gymId } });
-    if (!u) throw new NotFoundException('Usuario no pertenece al gimnasio');
-    if (u.role !== RoleEnum.ADMIN) throw new BadRequestException('Solo ADMIN puede registrar pagos');
-    return u;
+    const gymUser = await this.gymUsersRepo.findOne({ where: { userId: byUserId, gymId } });
+    if (!gymUser) throw new NotFoundException('Usuario no pertenece al gimnasio');
+    
+    const u = await this.usersRepo.findOne({ where: { id: byUserId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+    
+    if (gymUser.role !== RoleEnum.ADMIN) throw new BadRequestException('Solo ADMIN puede registrar pagos');
+    return { ...u, role: gymUser.role };
   }
 
   async create(dto: CreatePaymentDto) {
     const paidAt = new Date(dto.paidAt);
     if (Number.isNaN(paidAt.getTime())) throw new BadRequestException('paidAt inválido');
 
-    // Verificar que el usuario existe antes de asignarlo
+    // Verificar que el usuario existe y pertenece al gimnasio
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId: dto.createdByUserId, gymId: dto.gymId }
+    });
+    if (!gymUser) throw new NotFoundException('Usuario no pertenece al gimnasio');
+    
     const processedByUser = await this.usersRepo.findOne({ 
-      where: { id: dto.createdByUserId, gymId: dto.gymId } 
+      where: { id: dto.createdByUserId } 
     });
 
     // Obtener el plan para calcular el monto

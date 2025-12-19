@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { User, RoleEnum } from './entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -21,6 +22,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly repo: Repository<User>,
+    @InjectRepository(GymUser)
+    private readonly gymUsersRepo: Repository<GymUser>,
     private readonly commsService: CommunicationsService,
     @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
@@ -33,13 +36,37 @@ export class UsersService {
     return `pbkdf2$100000$${salt}$${hash}`;
   }
 
-  async create(dto: CreateUserDto): Promise<User> {
+  async create(dto: CreateUserDto, gymId: string): Promise<User> {
     console.log('🟣 UsersService.create - START');
-    console.log('🟣 DTO:', dto);
+    console.log('🟣 DTO:', dto, 'gymId:', gymId);
     
+    // Verificar si el email ya existe globalmente (users es global)
+    if (dto.email) {
+      const existing = await this.repo.findOne({ where: { email: dto.email } });
+      if (existing) {
+        // Usuario existe, verificar si ya tiene membership en este gym
+        const gymUser = await this.gymUsersRepo.findOne({
+          where: { userId: existing.id, gymId },
+        });
+        if (gymUser) {
+          throw new ConflictException('Este usuario ya existe en este gimnasio');
+        }
+        // Usuario existe pero no en este gym → crear solo gym_user
+        const newGymUser = this.gymUsersRepo.create({
+          gymId,
+          userId: existing.id,
+          role: dto.role,
+          isActive: dto.isActive ?? true,
+        });
+        await this.gymUsersRepo.save(newGymUser);
+        console.log('✅ Membership creado para usuario existente:', existing.id);
+        return existing;
+      }
+    }
+
+    // Usuario nuevo → crear user + gym_user
     const entity = this.repo.create({
-      gymId: dto.gymId,
-      role: dto.role,
+      role: dto.role, // role global (puede ser diferente en cada gym via gym_users)
       firstName: dto.firstName,
       lastName: dto.lastName,
       email: dto.email ?? null,
@@ -59,19 +86,27 @@ export class UsersService {
       const saved = await this.repo.save(entity);
       console.log('🟣 User saved:', saved.id);
 
+      // Crear gym_user (membership)
+      const gymUser = this.gymUsersRepo.create({
+        gymId,
+        userId: saved.id,
+        role: dto.role,
+        isActive: dto.isActive ?? true,
+      });
+      await this.gymUsersRepo.save(gymUser);
+      console.log('🟣 Gym user membership created:', gymUser.id);
+
       // Si es CLIENT y tiene email, enviar email de activación
-      if (saved.role === RoleEnum.CLIENT && saved.email) {
+      if (dto.role === RoleEnum.CLIENT && saved.email) {
         console.log('🟣 User is CLIENT with email, sending activation email...');
         try {
           console.log('🟣 Creating activation token...');
-          // Generar token de activación (válido 72 horas)
           const activationToken = await this.authService.createActivationToken(saved.id, 72);
           console.log('🟣 Activation token created:', activationToken);
           
           console.log('🟣 Calling sendAccountActivationEmail...');
-          // Enviar email de activación
           await this.commsService.sendAccountActivationEmail(
-            saved.gymId,
+            gymId,
             saved.id,
             saved.email,
             saved.fullName,
@@ -79,7 +114,6 @@ export class UsersService {
           );
           console.log('✅ Activation email sent successfully');
         } catch (emailErr) {
-          // No fallar el registro si el email falla
           console.error('⚠️ Error sending activation email (not failing registration):', emailErr);
         }
       }
@@ -89,12 +123,8 @@ export class UsersService {
     } catch (err: any) {
       console.error('❌ Error in UsersService.create:', err);
       if (err?.code === '23505') {
-        // Unique: email por gym (no null) o rut por gym
-        if (String(err?.detail || '').includes('(gym_id, email)')) {
-          throw new ConflictException('Ya existe un usuario con ese email en este gimnasio');
-        }
-        if (String(err?.detail || '').includes('(gym_id, rut)')) {
-          throw new ConflictException('Ya existe un usuario con ese RUT en este gimnasio');
+        if (String(err?.detail || '').includes('email')) {
+          throw new ConflictException('Ya existe un usuario con ese email');
         }
         throw new ConflictException('Registro duplicado');
       }
@@ -103,12 +133,14 @@ export class UsersService {
   }
 
   async findAll(q: QueryUsersDto): Promise<{ data: User[]; total: number }> {
-    const where: any = { gymId: q.gymId };
+    // JOIN con gym_users para obtener solo usuarios del gym
+    const qb = this.repo
+      .createQueryBuilder('u')
+      .innerJoin('gym_users', 'gu', 'gu.user_id = u.id')
+      .where('gu.gym_id = :gymId', { gymId: q.gymId });
 
-    if (q.role) where.role = q.role;
-    if (typeof q.isActive === 'boolean') where.isActive = q.isActive;
-
-    const qb = this.repo.createQueryBuilder('u').where(where);
+    if (q.role) qb.andWhere('gu.role = :role', { role: q.role });
+    if (typeof q.isActive === 'boolean') qb.andWhere('gu.is_active = :isActive', { isActive: q.isActive });
 
     if (q.q) {
       const like = `%${q.q}%`;
@@ -125,7 +157,13 @@ export class UsersService {
   }
 
   async findOne(id: string, gymId: string): Promise<User> {
-    const user = await this.repo.findOne({ where: { id, gymId } });
+    // Verificar que el usuario tenga membership en este gym
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId: id, gymId },
+    });
+    if (!gymUser) throw new NotFoundException('Usuario no encontrado en este gimnasio');
+
+    const user = await this.repo.findOne({ where: { id } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
     return user;
   }
@@ -133,9 +171,9 @@ export class UsersService {
   async update(id: string, gymId: string, dto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id, gymId);
 
+    // Actualizar datos del user (global)
     if (dto.firstName !== undefined) user.firstName = dto.firstName;
     if (dto.lastName !== undefined) user.lastName = dto.lastName;
-    if (dto.role !== undefined) user.role = dto.role;
     if (dto.email !== undefined) user.email = dto.email;
     if (dto.password !== undefined) {
       user.hashedPassword = dto.password ? this.hashPassword(dto.password) : null;
@@ -149,15 +187,24 @@ export class UsersService {
     if (dto.avatarUrl !== undefined) user.avatarUrl = dto.avatarUrl;
     if (dto.isActive !== undefined) user.isActive = dto.isActive;
 
+    // Actualizar role y isActive en gym_users (específico del gym)
+    if (dto.role !== undefined || dto.isActive !== undefined) {
+      const gymUser = await this.gymUsersRepo.findOne({
+        where: { userId: id, gymId },
+      });
+      if (gymUser) {
+        if (dto.role !== undefined) gymUser.role = dto.role;
+        if (dto.isActive !== undefined) gymUser.isActive = dto.isActive;
+        await this.gymUsersRepo.save(gymUser);
+      }
+    }
+
     try {
       return await this.repo.save(user);
     } catch (err: any) {
       if (err?.code === '23505') {
-        if (String(err?.detail || '').includes('(gym_id, email)')) {
-          throw new ConflictException('Ya existe un usuario con ese email en este gimnasio');
-        }
-        if (String(err?.detail || '').includes('(gym_id, rut)')) {
-          throw new ConflictException('Ya existe un usuario con ese RUT en este gimnasio');
+        if (String(err?.detail || '').includes('email')) {
+          throw new ConflictException('Ya existe un usuario con ese email');
         }
         throw new ConflictException('Registro duplicado');
       }
@@ -166,9 +213,21 @@ export class UsersService {
   }
 
   async remove(id: string, gymId: string): Promise<{ id: string }> {
-    // Hard delete para permitir reutilizar emails/RUTs en testing
-    const res = await this.repo.delete({ id, gymId });
-    if (!res.affected) throw new NotFoundException('Usuario no encontrado');
+    // Eliminar solo gym_user (membership en este gym)
+    // El user global se mantiene (puede tener memberships en otros gyms)
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId: id, gymId },
+    });
+    if (!gymUser) throw new NotFoundException('Usuario no encontrado en este gimnasio');
+
+    await this.gymUsersRepo.delete(gymUser.id);
+    
+    // OPCIONAL: Si el user no tiene más memberships, eliminar user también
+    const otherMemberships = await this.gymUsersRepo.count({ where: { userId: id } });
+    if (otherMemberships === 0) {
+      await this.repo.delete(id);
+    }
+
     return { id };
   }
 

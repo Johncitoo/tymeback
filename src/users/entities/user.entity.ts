@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 
 export enum RoleEnum {
+  SUPER_ADMIN = 'SUPER_ADMIN', // Administrador global de la plataforma
   ADMIN = 'ADMIN',
   TRAINER = 'TRAINER',
   NUTRITIONIST = 'NUTRITIONIST',
@@ -36,11 +37,7 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  // Multi-gimnasio
-  @Index()
-  @Column('uuid', { name: 'gym_id' })
-  gymId!: string;
-
+  // Email único global (multi-gimnasio)
   @Index()
   @Column('citext', { nullable: true })
   email!: string | null;

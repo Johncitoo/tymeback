@@ -7,6 +7,7 @@ import { UpdatePrDto } from './dto/update-pr.dto';
 import { QueryPrsDto } from './dto/query-prs.dto';
 import { SummaryLatestDto } from './dto/summary-latest.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { Exercise } from '../exercises/entities/exercise.entity';
 
 @Injectable()
@@ -14,14 +15,19 @@ export class PrRecordsService {
   constructor(
     @InjectRepository(PrRecord) private readonly repo: Repository<PrRecord>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
     @InjectRepository(Exercise) private readonly exRepo: Repository<Exercise>,
   ) {}
 
   private async assertClientInGym(clientId: string, gymId: string) {
-    const u = await this.usersRepo.findOne({ where: { id: clientId, gymId } });
-    if (!u) throw new NotFoundException('Cliente no pertenece al gimnasio');
-    if (u.role !== RoleEnum.CLIENT) throw new BadRequestException('El usuario no es CLIENTE');
-    return u;
+    const gymUser = await this.gymUsersRepo.findOne({ where: { userId: clientId, gymId } });
+    if (!gymUser) throw new NotFoundException('Cliente no pertenece al gimnasio');
+    if (gymUser.role !== RoleEnum.CLIENT) throw new BadRequestException('El usuario no es CLIENTE');
+    
+    const u = await this.usersRepo.findOne({ where: { id: clientId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+    
+    return { ...u, role: gymUser.role };
   }
 
   private async assertExerciseInGym(exerciseId: string, gymId: string) {

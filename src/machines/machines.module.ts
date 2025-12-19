@@ -6,11 +6,12 @@ import { MachinesController } from './machines.controller';
 import { Machine } from './entities/machine.entity';
 import { MachineMaintenance } from './entities/machine-maintenance.entity';
 import { User } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { MailerModule } from '../communications/mailer/mailer.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Machine, MachineMaintenance, User]),
+    TypeOrmModule.forFeature([Machine, MachineMaintenance, User, GymUser]),
     ConfigModule,
     MailerModule,
   ],
