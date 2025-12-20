@@ -40,6 +40,9 @@ async function bootstrap() {
     'https://www.somostyme.cl',
     'http://somostyme.cl',
     'http://www.somostyme.cl',
+    // Vercel deployments
+    'https://tyme-front-test-git-dev-johncitoos-projects.vercel.app',
+    'https://tyme-front-test-7qrzrtdtl-johncitoos-projects.vercel.app',
   ];
 
   app.enableCors({
