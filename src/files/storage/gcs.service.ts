@@ -15,6 +15,8 @@ export class GcsService {
     const privateKey = this.config.get<string>('GCS_PRIVATE_KEY');
     const clientEmail = this.config.get<string>('GCS_SERVICE_ACCOUNT_EMAIL');
 
+    this.logger.debug(`🔍 GCS Config - ProjectID: ${projectId ? 'SET' : 'MISSING'}, Email: ${clientEmail ? 'SET' : 'MISSING'}, Key: ${privateKey ? 'SET' : 'MISSING'}`);
+
     if (!projectId || !privateKey || !clientEmail) {
       this.logger.warn('⚠️  GCS credentials not configured - file functionality disabled');
       // Inicializar sin credenciales (fallará en operaciones pero no en startup)
