@@ -133,6 +133,14 @@ export class ClientsService {
           u.id, u.email, u.first_name as "firstName", u.last_name as "lastName",
           u.full_name as "fullName", u.phone, u.rut, u.birth_date as "birthDate",
           u.gender, u.sex, u.address, u.avatar_url as "avatarUrl",
+          (
+            SELECT f.id FROM files f 
+            WHERE f.gym_id = gu.gym_id 
+            AND f.purpose = 'AVATAR'
+            AND f.storage_key LIKE '%' || COALESCE(SPLIT_PART(u.avatar_url, '/', -1), 'no-match') || '%'
+            AND f.status = 'READY'
+            LIMIT 1
+          ) as "avatarFileId",
           u.platform_role as "platformRole", u.is_active as "isActive",
           u.created_at as "createdAt", u.updated_at as "updatedAt",
           COUNT(*) OVER() as total
