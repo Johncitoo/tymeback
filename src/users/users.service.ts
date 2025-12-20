@@ -133,37 +133,61 @@ export class UsersService {
   }
 
   async findAll(q: QueryUsersDto): Promise<{ data: User[]; total: number }> {
-    // JOIN con gym_users para obtener solo usuarios del gym
-    const qb = this.repo
-      .createQueryBuilder('u')
-      .select([
-        'u.id', 'u.email', 'u.firstName', 'u.lastName', 'u.fullName',
-        'u.phone', 'u.rut', 'u.birthDate', 'u.gender', 'u.sex',
-        'u.address', 'u.avatarUrl', 'u.platformRole', 'u.isActive',
-        'u.createdAt', 'u.updatedAt'
-      ])
-      .innerJoin('gym_users', 'gu', 'gu.user_id = u.id')
-      .where('gu.gym_id = :gymId', { gymId: q.gymId });
-
-    if (q.role) qb.andWhere('gu.role = :role', { role: q.role });
-    if (typeof q.isActive === 'boolean') qb.andWhere('gu.is_active = :isActive', { isActive: q.isActive });
-
-    if (q.q) {
-      const like = `%${q.q}%`;
-      qb.andWhere(
-        '(u.full_name ILIKE :like OR u.email ILIKE :like OR u.rut ILIKE :like OR u.phone ILIKE :like)',
-        { like },
-      );
-    }
-
-    qb.orderBy('u.created_at', 'DESC').skip(q.offset).take(q.limit);
-
-    // DEBUG: Ver SQL generado
-    console.log('SQL:', qb.getSql());
-    console.log('Params:', qb.getParameters());
-
     try {
-      const [data, total] = await qb.getManyAndCount();
+      // Usar query manual con el QueryRunner para evitar problemas de TypeORM metadata
+      const queryRunner = this.repo.manager.connection.createQueryRunner();
+      
+      // Construir query base
+      let sql = `
+        SELECT 
+          u.id, u.email, u.first_name as "firstName", u.last_name as "lastName", 
+          u.full_name as "fullName", u.phone, u.rut, u.birth_date as "birthDate",
+          u.gender, u.sex, u.address, u.avatar_url as "avatarUrl", 
+          u.platform_role as "platformRole", u.is_active as "isActive",
+          u.created_at as "createdAt", u.updated_at as "updatedAt",
+          COUNT(*) OVER() as total
+        FROM users u
+        INNER JOIN gym_users gu ON gu.user_id = u.id
+        WHERE gu.gym_id = $1
+      `;
+      
+      const params: any[] = [q.gymId];
+      let paramIndex = 2;
+      
+      if (q.role) {
+        sql += ` AND gu.role = $${paramIndex}`;
+        params.push(q.role);
+        paramIndex++;
+      }
+      
+      if (typeof q.isActive === 'boolean') {
+        sql += ` AND gu.is_active = $${paramIndex}`;
+        params.push(q.isActive);
+        paramIndex++;
+      }
+      
+      if (q.q) {
+        const like = `%${q.q}%`;
+        sql += ` AND (u.full_name ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex} OR u.rut ILIKE $${paramIndex} OR u.phone ILIKE $${paramIndex})`;
+        params.push(like);
+        paramIndex++;
+      }
+      
+      sql += ` ORDER BY u.created_at DESC`;
+      sql += ` LIMIT ${q.limit} OFFSET ${q.offset}`;
+      
+      console.log('Manual SQL:', sql);
+      console.log('Params:', params);
+      
+      const result = await queryRunner.query(sql, params);
+      await queryRunner.release();
+      
+      const total = result.length > 0 ? parseInt(result[0].total, 10) : 0;
+      const data = result.map(row => {
+        delete row.total;
+        return row;
+      });
+      
       return { data, total };
     } catch (error) {
       console.error('Error en findAll:', error);

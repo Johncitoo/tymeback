@@ -121,74 +121,95 @@ export class ClientsService {
   }
 
   async findAll(q: QueryClientsDto) {
-    // JOIN con gym_users para filtrar por gym
-    const qb = this.usersRepo
-      .createQueryBuilder('u')
-      .select([
-        'u.id', 'u.email', 'u.firstName', 'u.lastName', 'u.fullName',
-        'u.phone', 'u.rut', 'u.birthDate', 'u.gender', 'u.sex',
-        'u.address', 'u.avatarUrl', 'u.platformRole', 'u.isActive',
-        'u.createdAt', 'u.updatedAt'
-      ])
-      .innerJoin('gym_users', 'gu', 'gu.user_id = u.id')
-      .innerJoin('clients', 'c', 'c.gym_user_id = gu.id')
-      .where('gu.gym_id = :gymId', { gymId: q.gymId })
-      .andWhere('gu.role = :role', { role: RoleEnum.CLIENT })
-      .andWhere('u.deleted_at IS NULL');
-
-    // Filtro por isActive (gym_users.is_active)
-    if (typeof q.isActive === 'boolean') {
-      qb.andWhere('gu.is_active = :isActive', { isActive: q.isActive });
-    }
-
-    // Filtro por búsqueda de texto
-    if (q.q) {
-      const like = `%${q.q}%`;
-      qb.andWhere(
-        '(u.first_name ILIKE :like OR u.last_name ILIKE :like OR u.email ILIKE :like OR u.rut ILIKE :like OR u.phone ILIKE :like)',
-        { like },
-      );
-    }
-
-    // Filtro por trainerId
-    if (q.trainerId) {
-      // Obtener gym_user_id del trainer
-      const trainerGymUser = await this.gymUsersRepo.findOne({
-        where: { userId: q.trainerId, gymId: q.gymId },
-      });
-      if (trainerGymUser) {
-        qb.andWhere('c.trainer_gym_user_id = :trainerGymUserId', { trainerGymUserId: trainerGymUser.id });
-      } else {
-        // Si el trainer no existe en este gym, retornar vacío
-        return { data: [], total: 0 };
+    try {
+      // Usar query manual para evitar problemas de TypeORM
+      const queryRunner = this.usersRepo.manager.connection.createQueryRunner();
+      
+      let sql = `
+        SELECT 
+          u.id, u.email, u.first_name as "firstName", u.last_name as "lastName",
+          u.full_name as "fullName", u.phone, u.rut, u.birth_date as "birthDate",
+          u.gender, u.sex, u.address, u.avatar_url as "avatarUrl",
+          u.platform_role as "platformRole", u.is_active as "isActive",
+          u.created_at as "createdAt", u.updated_at as "updatedAt",
+          COUNT(*) OVER() as total
+        FROM users u
+        INNER JOIN gym_users gu ON gu.user_id = u.id
+        INNER JOIN clients c ON c.gym_user_id = gu.id
+        WHERE gu.gym_id = $1 
+          AND gu.role = $2
+          AND u.deleted_at IS NULL
+      `;
+      
+      const params: any[] = [q.gymId, RoleEnum.CLIENT];
+      let paramIndex = 3;
+      
+      if (typeof q.isActive === 'boolean') {
+        sql += ` AND gu.is_active = $${paramIndex}`;
+        params.push(q.isActive);
+        paramIndex++;
       }
+      
+      if (q.q) {
+        const like = `%${q.q}%`;
+        sql += ` AND (u.first_name ILIKE $${paramIndex} OR u.last_name ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex} OR u.rut ILIKE $${paramIndex} OR u.phone ILIKE $${paramIndex})`;
+        params.push(like);
+        paramIndex++;
+      }
+      
+      if (q.trainerId) {
+        // Obtener gym_user_id del trainer
+        const trainerGymUser = await this.gymUsersRepo.findOne({
+          where: { userId: q.trainerId, gymId: q.gymId },
+        });
+        if (trainerGymUser) {
+          sql += ` AND c.trainer_gym_user_id = $${paramIndex}`;
+          params.push(trainerGymUser.id);
+          paramIndex++;
+        } else {
+          // Si el trainer no existe en este gym, retornar vacío
+          return { data: [], total: 0 };
+        }
+      }
+      
+      sql += ` ORDER BY u.created_at DESC`;
+      sql += ` LIMIT ${q.limit} OFFSET ${q.offset}`;
+      
+      console.log('Manual SQL (clients):', sql);
+      console.log('Params:', params);
+      
+      const result = await queryRunner.query(sql, params);
+      await queryRunner.release();
+      
+      const total = result.length > 0 ? parseInt(result[0].total, 10) : 0;
+      const data = result.map(row => {
+        delete row.total;
+        return row;
+      });
+
+      // Adjuntar info de client para cada user
+      const userIds = data.map((u) => u.id);
+      const gymUsers = await this.gymUsersRepo.find({
+        where: { userId: userIds as any, gymId: q.gymId },
+      });
+      const gymUserByUserId = new Map(gymUsers.map((gu) => [gu.userId, gu]));
+
+      const clientRows = await this.clientsRepo.find({
+        where: { gymUserId: gymUsers.map((gu) => gu.id) as any },
+      });
+      const clientByGymUserId = new Map(clientRows.map((c) => [c.gymUserId, c]));
+
+      const resultWithClients = data.map((u) => {
+        const gymUser = gymUserByUserId.get(u.id);
+        const client = gymUser ? clientByGymUserId.get(gymUser.id) : null;
+        return { ...u, client };
+      });
+
+      return { data: resultWithClients, total };
+    } catch (error) {
+      console.error('Error en clients.findAll:', error);
+      throw error;
     }
-
-    const [data, total] = await qb
-      .orderBy('u.created_at', 'DESC')
-      .skip(q.offset)
-      .take(q.limit)
-      .getManyAndCount();
-
-    // Adjuntar info de client para cada user
-    const userIds = data.map((u) => u.id);
-    const gymUsers = await this.gymUsersRepo.find({
-      where: { userId: userIds as any, gymId: q.gymId },
-    });
-    const gymUserByUserId = new Map(gymUsers.map((gu) => [gu.userId, gu]));
-
-    const clientRows = await this.clientsRepo.find({
-      where: { gymUserId: gymUsers.map((gu) => gu.id) as any },
-    });
-    const clientByGymUserId = new Map(clientRows.map((c) => [c.gymUserId, c]));
-
-    const result = data.map((u) => {
-      const gymUser = gymUserByUserId.get(u.id);
-      const client = gymUser ? clientByGymUserId.get(gymUser.id) : null;
-      return { ...u, client };
-    });
-
-    return { data: result, total };
   }
 
   async findOne(userId: string, gymId: string) {
