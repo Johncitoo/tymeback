@@ -44,6 +44,9 @@ export class Payment {
   @Column('text', { name: 'receipt_url', nullable: true })
   receiptUrl!: string | null;
 
+  @Column('uuid', { name: 'receipt_file_id', nullable: true })
+  receiptFileId!: string | null;
+
   @Column('uuid', { name: 'processed_by_user_id', nullable: true })
   processedByUserId!: string | null;
 

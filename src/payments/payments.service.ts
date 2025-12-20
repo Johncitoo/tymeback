@@ -6,6 +6,8 @@ import { PaymentItem } from './entities/payment-item.entity';
 import { User, RoleEnum } from '../users/entities/user.entity';
 import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { Plan } from '../plans/entities/plan.entity';
+import { Client } from '../clients/entities/client.entity';
+import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipsService } from '../memberships/memberships.service';
 import { CommunicationsService } from '../communications/communications.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -24,6 +26,8 @@ export class PaymentsService {
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
     @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
     @InjectRepository(Plan) private readonly plansRepo: Repository<Plan>,
+    @InjectRepository(Client) private readonly clientsRepo: Repository<Client>,
+    @InjectRepository(Membership) private readonly membershipsRepo: Repository<Membership>,
     private readonly memberships: MembershipsService,
     private readonly commsService: CommunicationsService,
   ) {}
@@ -53,10 +57,22 @@ export class PaymentsService {
       where: { id: dto.createdByUserId } 
     });
 
-    // Obtener el plan para calcular el monto
-    const plan = await this.plansRepo.findOne({ where: { id: dto.planId } });
+    // Obtener el plan para calcular el monto y duración
+    const plan = await this.plansRepo.findOne({ where: { id: dto.planId, gymId: dto.gymId } });
     if (!plan) throw new NotFoundException('Plan no encontrado');
 
+    // Obtener el client (gym_user_id del cliente)
+    const clientGymUser = await this.gymUsersRepo.findOne({
+      where: { userId: dto.clientId, gymId: dto.gymId, role: RoleEnum.CLIENT }
+    });
+    if (!clientGymUser) throw new NotFoundException('Cliente no encontrado en este gimnasio');
+
+    const client = await this.clientsRepo.findOne({
+      where: { gymUserId: clientGymUser.id }
+    });
+    if (!client) throw new NotFoundException('Registro de cliente no encontrado');
+
+    // 1. Crear el pago
     const pay = this.repo.create({
       gymId: dto.gymId,
       method: dto.method ?? PaymentMethodEnum.CASH,
@@ -64,12 +80,13 @@ export class PaymentsService {
       totalAmountClp: plan.priceClp,
       notes: dto.note ?? null,
       receiptUrl: null,
+      receiptFileId: dto.receiptFileId ?? null, // ✅ GUARDAR EL FILE ID
       processedByUserId: processedByUser?.id ?? null,
     });
 
     const saved = await this.repo.save(pay);
 
-    // Crear payment_item
+    // 2. Crear payment_item
     const paymentItem = this.itemsRepo.create({
       paymentId: saved.id,
       clientId: dto.clientId,
@@ -81,17 +98,73 @@ export class PaymentsService {
       promotionId: null,
     });
 
-    await this.itemsRepo.save(paymentItem);
+    const savedItem = await this.itemsRepo.save(paymentItem);
 
-    // Enviar email de confirmación al cliente
-    const client = await this.usersRepo.findOne({ where: { id: dto.clientId } });
-    if (client?.email) {
+    // 3. ✅ CREAR LA MEMBRESÍA AUTOMÁTICAMENTE
+    // Buscar si el cliente tiene una membresía activa o futura
+    const existingMemberships = await this.membershipsRepo.find({
+      where: { clientGymUserId: clientGymUser.id },
+      order: { endsOn: 'DESC' },
+      take: 1,
+    });
+
+    let startsOn: string;
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (existingMemberships.length > 0) {
+      const lastMembership = existingMemberships[0];
+      // Si tiene membresía activa o futura, la nueva empieza el día siguiente
+      if (lastMembership.endsOn >= today) {
+        const nextDay = new Date(lastMembership.endsOn);
+        nextDay.setDate(nextDay.getDate() + 1);
+        startsOn = nextDay.toISOString().slice(0, 10);
+      } else {
+        // Si ya expiró, empieza hoy
+        startsOn = today;
+      }
+    } else {
+      // Primera membresía, empieza hoy
+      startsOn = today;
+    }
+
+    // Calcular fecha de fin (duración basada en el plan, por defecto 30 días)
+    const durationDays = plan.durationDays ?? 30;
+    const endsOnDate = new Date(startsOn);
+    endsOnDate.setDate(endsOnDate.getDate() + durationDays - 1); // -1 porque ends_on es INCLUSIVO
+    const endsOn = endsOnDate.toISOString().slice(0, 10);
+
+    // Crear la membresía
+    const membership = this.membershipsRepo.create({
+      gymId: dto.gymId,
+      clientGymUserId: clientGymUser.id,
+      planId: dto.planId,
+      paymentItemId: savedItem.id,
+      startsOn,
+      endsOn,
+      sessionsQuota: plan.privateSessionsPerPeriod ?? 0,
+      sessionsUsed: 0,
+    });
+
+    await this.membershipsRepo.save(membership);
+
+    console.log('✅ Membresía creada:', {
+      clientId: dto.clientId,
+      planName: plan.name,
+      startsOn,
+      endsOn,
+      durationDays,
+      sessionsQuota: membership.sessionsQuota,
+    });
+
+    // 4. Enviar email de confirmación al cliente
+    const clientUser = await this.usersRepo.findOne({ where: { id: dto.clientId } });
+    if (clientUser?.email) {
       try {
         await this.commsService.sendPaymentConfirmation(
           dto.gymId,
-          client.id,
-          client.email,
-          client.fullName,
+          clientUser.id,
+          clientUser.email,
+          clientUser.fullName,
           plan.name,
           plan.priceClp,
           paidAt.toISOString().slice(0, 10),
@@ -104,8 +177,11 @@ export class PaymentsService {
 
     return { 
       payment: saved,
+      membership,
       clientId: dto.clientId,
       planId: dto.planId,
+      startsOn,
+      endsOn,
     };
   }
 
@@ -170,6 +246,7 @@ export class PaymentsService {
           paidAt: payment.paidAt,
           method: payment.method,
           notes: payment.notes,
+          receiptFileId: payment.receiptFileId, // ✅ INCLUIR
           createdAt: payment.createdAt,
           clientId: firstItem?.clientId,
           planId: firstItem?.planId,
