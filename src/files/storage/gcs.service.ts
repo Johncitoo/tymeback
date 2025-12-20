@@ -78,4 +78,15 @@ export class GcsService {
     const [exists] = await file.exists();
     return exists;
   }
+
+  async uploadBuffer(args: { bucket: string; key: string; buffer: Buffer; contentType: string }) {
+    const file = this.storage.bucket(args.bucket).file(args.key);
+    await file.save(args.buffer, {
+      contentType: args.contentType,
+      metadata: {
+        contentType: args.contentType,
+      },
+    });
+    this.logger.log(`✅ File uploaded to gs://${args.bucket}/${args.key}`);
+  }
 }

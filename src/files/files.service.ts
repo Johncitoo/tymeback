@@ -186,4 +186,76 @@ export class FilesService {
     });
     return { url, expiresIn: 600 };
   }
+
+  // 7) Upload directo vía backend (más seguro)
+  async uploadDirectToGCS(params: {
+    gymId: string;
+    ownerUserId?: string;
+    file: Express.Multer.File;
+    purpose: FilePurposeEnum;
+    makePublic: boolean;
+  }) {
+    const { gymId, ownerUserId, file, purpose, makePublic } = params;
+
+    // Validaciones
+    if (!ALLOWED_MIME.has(file.mimetype)) {
+      throw new BadRequestException('MIME no permitido');
+    }
+    if (file.size > this.maxBytes) {
+      throw new BadRequestException(`Archivo excede límite (${this.maxBytes} bytes)`);
+    }
+
+    const key = this.buildKey(gymId, purpose, file.originalname);
+
+    // Crear registro en BD
+    const row = this.repo.create({
+      gymId,
+      uploadedByUserId: ownerUserId ?? null,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: String(file.size),
+      storageBucket: this.bucket,
+      storageKey: key,
+      publicUrl: null,
+      purpose,
+      status: FileStatusEnum.PENDING,
+    });
+    const saved = await this.repo.save(row);
+
+    try {
+      // Subir a GCS usando el buffer del archivo
+      await this.gcs.uploadBuffer({
+        bucket: this.bucket,
+        key,
+        buffer: file.buffer,
+        contentType: file.mimetype,
+      });
+
+      // Generar URL pública si es necesario
+      let publicUrl: string | null = null;
+      if (makePublic) {
+        publicUrl = `https://storage.googleapis.com/${this.bucket}/${encodeURIComponent(key)}`;
+      }
+
+      // Actualizar estado a READY
+      saved.publicUrl = publicUrl;
+      saved.status = FileStatusEnum.READY;
+      await this.repo.save(saved);
+
+      return {
+        fileId: saved.id,
+        publicUrl: saved.publicUrl,
+        storageKey: saved.storageKey,
+        status: saved.status,
+        originalName: saved.originalName,
+        mimeType: saved.mimeType,
+        sizeBytes: saved.sizeBytes,
+      };
+    } catch (error) {
+      // Si falla el upload, marcar como error
+      saved.status = FileStatusEnum.DELETED;
+      await this.repo.save(saved);
+      throw new BadRequestException(`Error subiendo a GCS: ${error.message}`);
+    }
+  }
 }
