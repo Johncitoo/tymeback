@@ -122,6 +122,9 @@ export class ClientsService {
 
   async findAll(q: QueryClientsDto) {
     try {
+      console.log('clients.findAll called with:', q);
+      console.log('RoleEnum.CLIENT:', RoleEnum.CLIENT);
+      
       // Usar query manual para evitar problemas de TypeORM
       const queryRunner = this.usersRepo.manager.connection.createQueryRunner();
       
@@ -175,10 +178,11 @@ export class ClientsService {
       sql += ` ORDER BY u.created_at DESC`;
       sql += ` LIMIT ${q.limit} OFFSET ${q.offset}`;
       
-      console.log('Manual SQL (clients):', sql);
+      console.log('SQL (clients):', sql);
       console.log('Params:', params);
       
       const result = await queryRunner.query(sql, params);
+      console.log('Query result count:', result.length);
       await queryRunner.release();
       
       const total = result.length > 0 ? parseInt(result[0].total, 10) : 0;
