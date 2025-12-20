@@ -44,11 +44,11 @@ export class MembershipsService {
   /**
    * Encuentra la membresía activa de un cliente
    */
-  async getActiveForClient(clientId: string): Promise<Membership | null> {
+  async getActiveForClient(clientGymUserId: string): Promise<Membership | null> {
     const today = todayIso();
     const m = await this.repo.findOne({
       where: {
-        clientId,
+        clientGymUserId,
         status: MembershipStatusEnum.ACTIVE,
         startsOn: LessThanOrEqual(today),
         endsOn: MoreThanOrEqual(today),

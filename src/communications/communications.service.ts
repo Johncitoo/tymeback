@@ -166,26 +166,29 @@ export class CommunicationsService {
     // Obtener usuarios con membresía CLIENT en este gimnasio via gym_users
     const gymUsers = await this.gymUsersRepo.find({
       where: { gymId, role: RoleEnum.CLIENT, isActive: true },
-      select: ['userId'],
+      select: ['id', 'userId'],
     });
     const userIds = gymUsers.map(gu => gu.userId);
     if (userIds.length === 0) return [];
 
     const users = await this.usersRepo.find({ where: { id: In(userIds) } });
+    
+    // Crear mapa gymUserId -> userId
+    const gymUserMap = new Map(gymUsers.map(gu => [gu.userId, gu.id]));
 
     // Asegurar email:string (no null) con type guard
-    const candidates: Array<{ clientId: string; email: string }> = users
+    const candidates: Array<{ clientId: string; clientGymUserId: string; email: string }> = users
       .filter((u): u is User & { email: string } => !!u.email)
-      .map(u => ({ clientId: u.id, email: u.email }));
+      .map(u => ({ clientId: u.id, clientGymUserId: gymUserMap.get(u.id)!, email: u.email }));
 
     if (filters?.activeOnly) {
       const today = this.todayISO();
       const activeMems = await this.memRepo.find({
         where: { startsOn: LessThanOrEqual(today), endsOn: MoreThanOrEqual(today) },
-        select: ['clientId'],
+        select: ['clientGymUserId'],
       });
-      const activeSet = new Set(activeMems.map(m => m.clientId));
-      return candidates.filter(c => activeSet.has(c.clientId));
+      const activeSet = new Set(activeMems.map(m => m.clientGymUserId));
+      return candidates.filter(c => activeSet.has(c.clientGymUserId));
     }
 
     return candidates;
@@ -291,8 +294,8 @@ export class CommunicationsService {
 
         // membresías que vencen ese día para clientes de este gimnasio
         const mems = await this.memRepo.find({
-          where: { endsOn: targetISO, clientId: In(clientIds) },
-          select: ['id', 'clientId', 'planId'],
+          where: { endsOn: targetISO, clientGymUserId: In(clientIds) },
+          select: ['id', 'clientGymUserId', 'planId'],
         });
         if (mems.length === 0) continue;
 
@@ -313,14 +316,14 @@ export class CommunicationsService {
         for (const m of mems) {
           if (sentSet.has(m.id)) continue;
 
-          // Validar que el usuario pertenece al gimnasio
+          // Validar que el usuario pertenece al gimnasio (clientGymUserId ya es el gym_user id)
           const gymUser = await this.gymUsersRepo.findOne({
-            where: { userId: m.clientId, gymId, role: RoleEnum.CLIENT },
+            where: { id: m.clientGymUserId, gymId, role: RoleEnum.CLIENT },
           });
           if (!gymUser) continue;
 
           const user = await this.usersRepo.findOne({
-            where: { id: m.clientId },
+            where: { id: gymUser.userId },
             select: ['id', 'fullName', 'email'],
           });
           if (!user?.email) continue;
@@ -348,7 +351,7 @@ export class CommunicationsService {
             await this.remRepo.save(this.remRepo.create({
               gymId,
               membershipId: m.id,
-              clientId: m.clientId,
+              clientId: m.clientGymUserId,
               daysBefore: d,
               sentAt: new Date(),
             }));
