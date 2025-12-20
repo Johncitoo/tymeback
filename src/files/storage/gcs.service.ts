@@ -11,9 +11,9 @@ export class GcsService {
   private readonly logger = new Logger(GcsService.name);
 
   constructor(private readonly config: ConfigService) {
-    const projectId = this.config.get<string>('GCP_PROJECT_ID');
-    const privateKey = this.config.get<string>('GCP_PRIVATE_KEY');
-    const clientEmail = this.config.get<string>('GCP_SERVICE_ACCOUNT_EMAIL');
+    const projectId = this.config.get<string>('GCS_PROJECT_ID');
+    const privateKey = this.config.get<string>('GCS_PRIVATE_KEY');
+    const clientEmail = this.config.get<string>('GCS_SERVICE_ACCOUNT_EMAIL');
 
     if (!projectId || !privateKey || !clientEmail) {
       this.logger.warn('⚠️  GCS credentials not configured - file functionality disabled');
