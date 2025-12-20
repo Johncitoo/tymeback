@@ -6,10 +6,22 @@ export class GcsService {
   private storage: Storage;
 
   constructor() {
-    // Autenticación:
-    // 1) GOOGLE_APPLICATION_CREDENTIALS=/path/sa.json
-    // 2) O bien variables de entorno de GCP (en Railway secreto como archivo)
-    this.storage = new Storage();
+    // Autenticación mediante variables de entorno
+    const projectId = process.env.GCS_PROJECT_ID;
+    const clientEmail = process.env.GCS_SERVICE_ACCOUNT_EMAIL;
+    const privateKey = process.env.GCS_PRIVATE_KEY;
+
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new Error('Faltan variables de entorno de GCS: GCS_PROJECT_ID, GCS_SERVICE_ACCOUNT_EMAIL, GCS_PRIVATE_KEY');
+    }
+
+    this.storage = new Storage({
+      projectId,
+      credentials: {
+        client_email: clientEmail,
+        private_key: privateKey.replace(/\\n/g, '\n'), // Railway puede escapar los saltos de línea
+      },
+    });
   }
 
   bucket(bucketName: string) {
