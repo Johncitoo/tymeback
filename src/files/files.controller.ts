@@ -111,9 +111,16 @@ export class FilesController {
     return this.files.softDelete(id);
   }
 
-  // 7) (Opcional) URL de descarga temporal firmada
+  // 7) URL de descarga temporal firmada (10 min) - requiere autenticación
+  // TODO: Agregar @UseGuards(JwtAuthGuard) cuando esté implementado
   @Get(':id/download-url')
-  downloadUrl(@Param('id') id: string) {
+  async downloadUrl(
+    @Param('id') id: string,
+    // @CurrentUser() user: any, // Descomentar cuando tengas JwtAuthGuard
+  ) {
+    // TODO: Validar que el usuario pertenezca al mismo gym del archivo
+    // const file = await this.files.findOne(id);
+    // if (file.gymId !== user.gymId) throw new ForbiddenException();
     return this.files.getDownloadUrl(id);
   }
 }
