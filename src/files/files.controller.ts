@@ -1,10 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseInterceptors, UploadedFile, BadRequestException, UseGuards, ForbiddenException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FilesService } from './files.service';
 import { CreateUploadDto } from './dto/create-upload.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { QueryFilesDto } from './dto/query-files.dto';
 import { GcsService } from './storage/gcs.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtUser } from '../auth/current-user.decorator';
 
 @Controller('files')
 export class FilesController {
@@ -112,15 +115,17 @@ export class FilesController {
   }
 
   // 7) URL de descarga temporal firmada (10 min) - requiere autenticación
-  // TODO: Agregar @UseGuards(JwtAuthGuard) cuando esté implementado
   @Get(':id/download-url')
+  @UseGuards(JwtAuthGuard)
   async downloadUrl(
     @Param('id') id: string,
-    // @CurrentUser() user: any, // Descomentar cuando tengas JwtAuthGuard
+    @CurrentUser() user: JwtUser,
   ) {
-    // TODO: Validar que el usuario pertenezca al mismo gym del archivo
-    // const file = await this.files.findOne(id);
-    // if (file.gymId !== user.gymId) throw new ForbiddenException();
+    // Validar que el usuario pertenezca al mismo gym del archivo
+    const file = await this.files.findOne(id);
+    if (file.gymId !== user.gymId) {
+      throw new ForbiddenException('No tienes permiso para acceder a este archivo');
+    }
     return this.files.getDownloadUrl(id);
   }
 }
