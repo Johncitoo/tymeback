@@ -158,8 +158,17 @@ export class UsersService {
 
     qb.orderBy('u.created_at', 'DESC').skip(q.offset).take(q.limit);
 
-    const [data, total] = await qb.getManyAndCount();
-    return { data, total };
+    // DEBUG: Ver SQL generado
+    console.log('SQL:', qb.getSql());
+    console.log('Params:', qb.getParameters());
+
+    try {
+      const [data, total] = await qb.getManyAndCount();
+      return { data, total };
+    } catch (error) {
+      console.error('Error en findAll:', error);
+      throw error;
+    }
   }
 
   async findOne(id: string, gymId: string): Promise<User> {
