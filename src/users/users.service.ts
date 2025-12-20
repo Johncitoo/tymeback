@@ -86,6 +86,20 @@ export class UsersService {
       const saved = await this.repo.save(entity);
       console.log('🟣 User saved:', saved.id);
 
+      // Actualizar uploaded_by_user_id del avatar si existe
+      if (dto.avatarUrl) {
+        console.log('🟣 Updating avatar file ownership...');
+        const match = dto.avatarUrl.match(/\/([^\/\?]+)(\?|$)/);
+        if (match) {
+          const storageKey = decodeURIComponent(match[1]);
+          await this.repo.query(
+            `UPDATE files SET uploaded_by_user_id = $1 WHERE gym_id = $2 AND storage_key LIKE $3 AND purpose = 'AVATAR' AND uploaded_by_user_id IS NULL`,
+            [saved.id, gymId, `%${storageKey}%`]
+          );
+          console.log('🟣 Avatar file ownership updated');
+        }
+      }
+
       // Crear gym_user (membership)
       const gymUser = this.gymUsersRepo.create({
         gymId,

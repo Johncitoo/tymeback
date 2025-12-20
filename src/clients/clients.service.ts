@@ -77,6 +77,20 @@ export class ClientsService {
 
         console.log('🔵 User created:', user.id);
 
+        // 1.5) Si se subió avatar, actualizar uploaded_by_user_id del archivo
+        if (dto.avatarUrl) {
+          // Buscar archivo de avatar por storage_key (extraer de URL)
+          const match = dto.avatarUrl.match(/\/([^\/\?]+)(\?|$)/);
+          if (match) {
+            const storageKey = decodeURIComponent(match[1]);
+            console.log('🔵 Actualizando ownership de avatar:', storageKey);
+            await trx.query(
+              `UPDATE files SET uploaded_by_user_id = $1 WHERE gym_id = $2 AND storage_key LIKE $3 AND purpose = 'AVATAR' AND uploaded_by_user_id IS NULL`,
+              [user.id, gymId, `%${storageKey}%`]
+            );
+          }
+        }
+
         // 2) Obtener gym_user_id del cliente recién creado
         const gymUser = await trx.getRepository(GymUser).findOne({
           where: { userId: user.id, gymId },
