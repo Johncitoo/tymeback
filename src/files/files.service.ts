@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { AppFile, FilePurposeEnum, FileStatusEnum } from './entities/file.entity';
@@ -35,6 +35,7 @@ function extOf(name: string) {
 
 @Injectable()
 export class FilesService {
+  private readonly logger = new Logger(FilesService.name);
   private readonly bucket: string;
   private readonly putTtl: number;
   private readonly maxBytes: number;
