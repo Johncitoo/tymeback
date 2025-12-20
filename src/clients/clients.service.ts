@@ -183,7 +183,6 @@ export class ClientsService {
       
       const result = await queryRunner.query(sql, params);
       console.log('Query result count:', result.length);
-      await queryRunner.release();
       
       const total = result.length > 0 ? parseInt(result[0].total, 10) : 0;
       const data = result.map(row => {
@@ -192,26 +191,49 @@ export class ClientsService {
       });
 
       // Adjuntar info de client para cada user
-      const userIds = data.map((u) => u.id);
-      const gymUsers = await this.gymUsersRepo.find({
-        where: { userId: userIds as any, gymId: q.gymId },
-      });
-      const gymUserByUserId = new Map(gymUsers.map((gu) => [gu.userId, gu]));
+      if (data.length > 0) {
+        const userIds = data.map((u) => u.id);
+        
+        // Query para obtener client info
+        const clientsQuery = `
+          SELECT 
+            c.gym_user_id as "gymUserId",
+            c.trainer_gym_user_id as "trainerGymUserId",
+            c.admission_date as "admissionDate",
+            c.created_at as "createdAt"
+          FROM clients c
+          INNER JOIN gym_users gu ON c.gym_user_id = gu.id
+          WHERE gu.user_id = ANY($1::uuid[])
+        `;
+        
+        const clientsData = await queryRunner.query(clientsQuery, [userIds]);
+        const clientByUserId = new Map();
+        
+        // Necesitamos mapear client info por user_id
+        for (const clientRow of clientsData) {
+          const gymUserRow = await queryRunner.query(
+            `SELECT user_id FROM gym_users WHERE id = $1`,
+            [clientRow.gymUserId]
+          );
+          if (gymUserRow.length > 0) {
+            clientByUserId.set(gymUserRow[0].user_id, clientRow);
+          }
+        }
+        
+        const resultWithClients = data.map((u) => {
+          const client = clientByUserId.get(u.id) || null;
+          return { ...u, client };
+        });
+        
+        await queryRunner.release();
+        return { data: resultWithClients, total };
+      }
 
-      const clientRows = await this.clientsRepo.find({
-        where: { gymUserId: gymUsers.map((gu) => gu.id) as any },
-      });
-      const clientByGymUserId = new Map(clientRows.map((c) => [c.gymUserId, c]));
-
-      const resultWithClients = data.map((u) => {
-        const gymUser = gymUserByUserId.get(u.id);
-        const client = gymUser ? clientByGymUserId.get(gymUser.id) : null;
-        return { ...u, client };
-      });
-
-      return { data: resultWithClients, total };
+      await queryRunner.release();
+      return { data, total };
     } catch (error) {
       console.error('Error en clients.findAll:', error);
+      console.error('Error stack:', error?.stack);
       throw error;
     }
   }
