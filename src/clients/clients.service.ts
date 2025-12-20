@@ -125,7 +125,7 @@ export class ClientsService {
       console.log('clients.findAll called with:', q);
       console.log('RoleEnum.CLIENT:', RoleEnum.CLIENT);
       
-      // Usar query manual para evitar problemas de TypeORM
+      // Usar query manual simplificada sin objetos anidados
       const queryRunner = this.usersRepo.manager.connection.createQueryRunner();
       
       let sql = `
@@ -135,10 +135,6 @@ export class ClientsService {
           u.gender, u.sex, u.address, u.avatar_url as "avatarUrl",
           u.platform_role as "platformRole", u.is_active as "isActive",
           u.created_at as "createdAt", u.updated_at as "updatedAt",
-          c.gym_user_id as "client_gymUserId",
-          c.trainer_gym_user_id as "client_trainerGymUserId",
-          c.admission_date as "client_admissionDate",
-          c.created_at as "client_createdAt",
           COUNT(*) OVER() as total
         FROM users u
         INNER JOIN gym_users gu ON gu.user_id = u.id
@@ -175,6 +171,7 @@ export class ClientsService {
           paramIndex++;
         } else {
           // Si el trainer no existe en este gym, retornar vacío
+          await queryRunner.release();
           return { data: [], total: 0 };
         }
       }
@@ -191,35 +188,14 @@ export class ClientsService {
       
       const total = result.length > 0 ? parseInt(result[0].total, 10) : 0;
       const data = result.map(row => {
-        const user: any = { ...row };
-        const clientInfo: any = {};
-        
-        // Separar client fields del user
-        if (row.client_gymUserId) {
-          clientInfo.gymUserId = row.client_gymUserId;
-          delete user.client_gymUserId;
-        }
-        if (row.client_trainerGymUserId) {
-          clientInfo.trainerGymUserId = row.client_trainerGymUserId;
-          delete user.client_trainerGymUserId;
-        }
-        if (row.client_admissionDate) {
-          clientInfo.admissionDate = row.client_admissionDate;
-          delete user.client_admissionDate;
-        }
-        if (row.client_createdAt) {
-          clientInfo.createdAt = row.client_createdAt;
-          delete user.client_createdAt;
-        }
-        
-        delete user.total;
-        user.client = Object.keys(clientInfo).length > 0 ? clientInfo : null;
-        return user;
+        delete row.total;
+        return row;
       });
 
       return { data, total };
     } catch (error) {
       console.error('Error en clients.findAll:', error);
+      console.error('Error message:', error?.message);
       console.error('Error stack:', error?.stack);
       throw error;
     }
