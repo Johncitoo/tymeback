@@ -79,7 +79,7 @@ export class FilesService {
 
     const row = this.repo.create({
       gymId: dto.gymId,
-      ownerUserId: dto.ownerUserId ?? null,
+      uploadedByUserId: dto.ownerUserId ?? null,
       originalName: dto.originalName,
       mimeType: dto.mimeType,
       // BIGINT seguro: guardamos como string
@@ -137,7 +137,7 @@ export class FilesService {
   // 3) Listado
   async findAll(q: QueryFilesDto) {
     const where: any = { gymId: q.gymId };
-    if (q.ownerUserId) where.ownerUserId = q.ownerUserId;
+    if (q.ownerUserId) where.uploadedByUserId = q.ownerUserId;
     if (q.purpose) where.purpose = q.purpose;
     if (q.status) where.status = q.status;
     const take = Math.min(Math.max(q.limit ?? 20, 1), 100);

@@ -29,7 +29,7 @@ export enum FileStatusEnum {
 
 @Entity({ name: 'files' })
 @Index(['gymId', 'purpose'])
-@Index(['gymId', 'ownerUserId'])
+@Index(['gymId', 'uploadedByUserId'])
 export class AppFile {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -37,12 +37,12 @@ export class AppFile {
   @Column('uuid', { name: 'gym_id' })
   gymId!: string;
 
-  @Column('uuid', { name: 'owner_user_id', nullable: true })
-  ownerUserId!: string | null;
+  @Column('uuid', { name: 'uploaded_by_user_id', nullable: true })
+  uploadedByUserId!: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn({ name: 'owner_user_id' })
-  ownerUser!: User | null;
+  @JoinColumn({ name: 'uploaded_by_user_id' })
+  uploadedByUser!: User | null;
 
   @Column('text', { name: 'original_name' })
   originalName!: string;
