@@ -44,8 +44,8 @@ export class Payment {
   @Column('text', { name: 'receipt_url', nullable: true })
   receiptUrl!: string | null;
 
-  @Column('uuid', { name: 'processed_by', nullable: true })
-  processedBy!: string | null;
+  @Column('uuid', { name: 'processed_by_user_id', nullable: true })
+  processedByUserId!: string | null;
 
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;

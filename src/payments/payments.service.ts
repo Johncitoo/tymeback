@@ -64,7 +64,7 @@ export class PaymentsService {
       totalAmountClp: plan.priceClp,
       notes: dto.note ?? null,
       receiptUrl: null,
-      processedBy: processedByUser?.id ?? null,
+      processedByUserId: processedByUser?.id ?? null,
     });
 
     const saved = await this.repo.save(pay);
