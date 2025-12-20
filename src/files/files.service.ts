@@ -231,10 +231,23 @@ export class FilesService {
         contentType: file.mimetype,
       });
 
-      // Generar URL pública si es necesario
+      // Generar URL pública o firmada
       let publicUrl: string | null = null;
       if (makePublic) {
-        publicUrl = `https://storage.googleapis.com/${this.bucket}/${encodeURIComponent(key)}`;
+        // Con Uniform Bucket-Level Access, no podemos hacer archivos individuales públicos
+        // Usamos URLs firmadas temporales (válidas por 7 días)
+        try {
+          publicUrl = await this.gcs.getSignedDownloadUrl({
+            bucket: this.bucket,
+            key,
+            expiresIn: 7 * 24 * 60 * 60, // 7 días en segundos
+          });
+          this.logger.log(`✅ Signed URL generated for ${key}`);
+        } catch (error) {
+          this.logger.warn(`Failed to generate signed URL: ${error.message}`);
+          // Fallback: URL pública estática (fallará si bucket no es público)
+          publicUrl = `https://storage.googleapis.com/${this.bucket}/${encodeURIComponent(key)}`;
+        }
       }
 
       // Actualizar estado a READY
