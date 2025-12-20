@@ -135,6 +135,10 @@ export class ClientsService {
           u.gender, u.sex, u.address, u.avatar_url as "avatarUrl",
           u.platform_role as "platformRole", u.is_active as "isActive",
           u.created_at as "createdAt", u.updated_at as "updatedAt",
+          c.gym_user_id as "client_gymUserId",
+          c.trainer_gym_user_id as "client_trainerGymUserId",
+          c.admission_date as "client_admissionDate",
+          c.created_at as "client_createdAt",
           COUNT(*) OVER() as total
         FROM users u
         INNER JOIN gym_users gu ON gu.user_id = u.id
@@ -183,53 +187,36 @@ export class ClientsService {
       
       const result = await queryRunner.query(sql, params);
       console.log('Query result count:', result.length);
+      await queryRunner.release();
       
       const total = result.length > 0 ? parseInt(result[0].total, 10) : 0;
       const data = result.map(row => {
-        delete row.total;
-        return row;
-      });
-
-      // Adjuntar info de client para cada user
-      if (data.length > 0) {
-        const userIds = data.map((u) => u.id);
+        const user: any = { ...row };
+        const clientInfo: any = {};
         
-        // Query para obtener client info
-        const clientsQuery = `
-          SELECT 
-            c.gym_user_id as "gymUserId",
-            c.trainer_gym_user_id as "trainerGymUserId",
-            c.admission_date as "admissionDate",
-            c.created_at as "createdAt"
-          FROM clients c
-          INNER JOIN gym_users gu ON c.gym_user_id = gu.id
-          WHERE gu.user_id = ANY($1::uuid[])
-        `;
-        
-        const clientsData = await queryRunner.query(clientsQuery, [userIds]);
-        const clientByUserId = new Map();
-        
-        // Necesitamos mapear client info por user_id
-        for (const clientRow of clientsData) {
-          const gymUserRow = await queryRunner.query(
-            `SELECT user_id FROM gym_users WHERE id = $1`,
-            [clientRow.gymUserId]
-          );
-          if (gymUserRow.length > 0) {
-            clientByUserId.set(gymUserRow[0].user_id, clientRow);
-          }
+        // Separar client fields del user
+        if (row.client_gymUserId) {
+          clientInfo.gymUserId = row.client_gymUserId;
+          delete user.client_gymUserId;
+        }
+        if (row.client_trainerGymUserId) {
+          clientInfo.trainerGymUserId = row.client_trainerGymUserId;
+          delete user.client_trainerGymUserId;
+        }
+        if (row.client_admissionDate) {
+          clientInfo.admissionDate = row.client_admissionDate;
+          delete user.client_admissionDate;
+        }
+        if (row.client_createdAt) {
+          clientInfo.createdAt = row.client_createdAt;
+          delete user.client_createdAt;
         }
         
-        const resultWithClients = data.map((u) => {
-          const client = clientByUserId.get(u.id) || null;
-          return { ...u, client };
-        });
-        
-        await queryRunner.release();
-        return { data: resultWithClients, total };
-      }
+        delete user.total;
+        user.client = Object.keys(clientInfo).length > 0 ? clientInfo : null;
+        return user;
+      });
 
-      await queryRunner.release();
       return { data, total };
     } catch (error) {
       console.error('Error en clients.findAll:', error);
