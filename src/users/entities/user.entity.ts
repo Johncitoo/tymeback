@@ -54,6 +54,8 @@ export class User {
     enum: RoleEnum,
     enumName: 'role_enum',
     select: false, // NO seleccionar por defecto porque causa error en BD
+    insert: false, // NO insertar porque no existe en BD
+    update: false, // NO actualizar porque no existe en BD
   })
   role?: RoleEnum; // Opcional porque no existe en BD
 
