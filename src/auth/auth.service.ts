@@ -73,7 +73,7 @@ export class AuthService {
    * 3. Verifica password
    * 4. Valida membership en gym_users
    */
-  async validateUser(gymSlug: string, login: string, password: string): Promise<{ user: User; gymUser: GymUser; gymId: string }> {
+  async validateUser(gymSlug: string, login: string, password: string): Promise<{ user: User; gymUser: GymUser | null; gymId: string }> {
     // 1. Resolver gymSlug → gym
     const gym = await this.gymsRepo.findOne({ where: { slug: gymSlug, isActive: true } });
     if (!gym) {
@@ -91,11 +91,22 @@ export class AuthService {
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
 
     // 4. Verificar membership en gym_users
-    const gymUser = await this.gymUsersRepo.findOne({
+    let gymUser = await this.gymUsersRepo.findOne({
       where: { gymId: gym.id, userId: user.id, isActive: true },
     });
+
+    // 5. SUPER_ADMIN: Si no tiene gym_users, buscar ANY gym_user con rol SUPER_ADMIN
     if (!gymUser) {
-      throw new UnauthorizedException('Usuario no tiene acceso a este gimnasio');
+      const superAdminGymUser = await this.gymUsersRepo.findOne({
+        where: { userId: user.id, role: RoleEnum.SUPER_ADMIN, isActive: true },
+      });
+      
+      if (superAdminGymUser) {
+        // SUPER_ADMIN puede acceder a cualquier gym sin estar explícitamente asociado
+        gymUser = superAdminGymUser;
+      } else {
+        throw new UnauthorizedException('Usuario no tiene acceso a este gimnasio');
+      }
     }
 
     return { user, gymUser, gymId: gym.id };

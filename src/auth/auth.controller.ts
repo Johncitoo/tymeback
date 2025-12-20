@@ -12,10 +12,14 @@ export class AuthController {
   @Post('login')
   async login(@Body() dto: LoginDto) {
     const { user, gymUser, gymId } = await this.auth.validateUser(dto.gymSlug, dto.login, dto.password);
-    const accessToken = this.auth.signToken(user, gymId, gymUser.role);
+    
+    // gymUser puede ser null para SUPER_ADMIN, pero siempre tendrá un rol
+    const role = gymUser?.role || 'SUPER_ADMIN';
+    
+    const accessToken = this.auth.signToken(user, gymId, role as any);
     return {
       access_token: accessToken,
-      user: this.auth.toAuthUser(user, gymId, gymUser.role),
+      user: this.auth.toAuthUser(user, gymId, role as any),
     };
   }
 
