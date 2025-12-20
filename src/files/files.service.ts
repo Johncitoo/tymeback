@@ -123,7 +123,8 @@ export class FilesService {
 
     let publicUrl: string | null = row.publicUrl;
     if (dto.makePublic === true) {
-      await this.gcs.makePublic(row.storageBucket, row.storageKey);
+      // No llamar a makePublic() porque el bucket tiene Uniform Bucket-Level Access
+      // En su lugar, generar la URL pública directamente
       publicUrl = `https://storage.googleapis.com/${row.storageBucket}/${encodeURIComponent(row.storageKey)}`;
     }
 
