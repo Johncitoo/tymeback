@@ -135,10 +135,11 @@ export class ClientsService {
           u.gender, u.sex, u.address, u.avatar_url as "avatarUrl",
           (
             SELECT f.id FROM files f 
-            WHERE f.gym_id = gu.gym_id 
+            WHERE f.uploaded_by_user_id = u.id
+            AND f.gym_id = gu.gym_id 
             AND f.purpose = 'AVATAR'
-            AND f.storage_key LIKE '%' || COALESCE(SPLIT_PART(u.avatar_url, '/', -1), 'no-match') || '%'
             AND f.status = 'READY'
+            ORDER BY f.created_at DESC
             LIMIT 1
           ) as "avatarFileId",
           u.platform_role as "platformRole", u.is_active as "isActive",
