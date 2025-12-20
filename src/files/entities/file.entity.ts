@@ -18,6 +18,7 @@ export enum FilePurposeEnum {
   INBODY_PDF = 'INBODY_PDF',
   PROGRESS_PHOTO = 'PROGRESS_PHOTO',
   CERTIFICATE = 'CERTIFICATE', // títulos entrenador
+  DOCUMENT = 'DOCUMENT', // documentos generales
   OTHER = 'OTHER',
 }
 
