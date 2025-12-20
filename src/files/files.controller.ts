@@ -43,7 +43,11 @@ export class FilesController {
 
   // 1) Upload directo vía backend (más seguro)
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', {
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB
+    },
+  }))
   async uploadDirect(
     @UploadedFile() file: Express.Multer.File,
     @Body('gymId') gymId: string,
@@ -51,6 +55,19 @@ export class FilesController {
     @Body('ownerUserId') ownerUserId?: string,
     @Body('makePublic') makePublic?: string,
   ) {
+    console.log('🔍 Upload endpoint hit:', {
+      hasFile: !!file,
+      fileDetails: file ? {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+      } : null,
+      gymId,
+      purpose,
+      ownerUserId,
+      makePublic,
+    });
+
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }

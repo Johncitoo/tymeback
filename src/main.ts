@@ -16,9 +16,9 @@ async function bootstrap() {
     bodyParser: true,
   });
 
-  // Aumentar límite de body-parser para uploads (10MB)
-  app.use(require('express').json({ limit: '10mb' }));
-  app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
+  // NOTA: NO usar body-parser middleware aquí porque interfiere con multipart/form-data
+  // NestJS ya incluye body-parser por defecto cuando bodyParser: true
+  // Multer (FileInterceptor) maneja multipart/form-data automáticamente
 
   // Global validation pipe
   app.useGlobalPipes(
