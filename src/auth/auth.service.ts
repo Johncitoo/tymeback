@@ -74,20 +74,28 @@ export class AuthService {
    * 4. Valida membership en gym_users
    */
   async validateUser(gymSlug: string, login: string, password: string): Promise<{ user: User; gymUser: GymUser | null; gymId: string }> {
+    console.log('🔐 [AUTH] validateUser llamado con:', { gymSlug, login, passwordLength: password?.length });
+    
     // 1. Resolver gymSlug → gym
     const gym = await this.gymsRepo.findOne({ where: { slug: gymSlug, isActive: true } });
     if (!gym) {
+      console.log('❌ [AUTH] Gimnasio no encontrado:', gymSlug);
       throw new UnauthorizedException('Gimnasio no encontrado o inactivo');
     }
+    console.log('✅ [AUTH] Gym encontrado:', { id: gym.id, name: gym.name, slug: gym.slug });
 
     // 2. Buscar usuario global
     const user = await this.findByLogin(login);
     if (!user || !user.isActive || !user.hashedPassword) {
+      console.log('❌ [AUTH] Usuario no encontrado o inactivo:', { userFound: !!user, isActive: user?.isActive, hasPassword: !!user?.hashedPassword });
       throw new UnauthorizedException('Credenciales inválidas');
     }
+    console.log('✅ [AUTH] Usuario encontrado:', { id: user.id, email: user.email, hasPassword: !!user.hashedPassword });
 
     // 3. Verificar password
+    console.log('🔑 [AUTH] Verificando password...');
     const ok = this.verifyPbkdf2(password, user.hashedPassword);
+    console.log('🔑 [AUTH] Resultado verificación:', ok ? '✅ VÁLIDA' : '❌ INVÁLIDA');
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
 
     // 4. Verificar membership en gym_users
