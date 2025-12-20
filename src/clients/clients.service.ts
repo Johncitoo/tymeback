@@ -336,19 +336,76 @@ export class ClientsService {
     });
     if (!gymUser) throw new NotFoundException('Cliente no encontrado en este gimnasio');
 
-    // Eliminar client (CASCADE debería eliminar gym_user automáticamente si está configurado)
+    // Soft delete del usuario (marca deleted_at)
+    await this.usersRepo.softDelete(gymUser.userId);
+
+    return { id: userId, message: 'Cliente movido al basurero' };
+  }
+
+  /**
+   * Restaura un cliente eliminado (soft delete)
+   */
+  async restore(userId: string, gymId: string) {
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: [
+        { id: userId, gymId },
+        { userId: userId, gymId },
+      ],
+    });
+    if (!gymUser) throw new NotFoundException('Cliente no encontrado');
+
+    await this.usersRepo.restore(gymUser.userId);
+    return { id: userId, message: 'Cliente restaurado' };
+  }
+
+  /**
+   * Elimina permanentemente un cliente (hard delete)
+   */
+  async removePermanently(userId: string, gymId: string) {
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: [
+        { id: userId, gymId },
+        { userId: userId, gymId },
+      ],
+      withDeleted: true, // Incluir soft-deleted
+    });
+    if (!gymUser) throw new NotFoundException('Cliente no encontrado');
+
+    // Eliminar client
     await this.clientsRepo.delete({ gymUserId: gymUser.id });
 
-    // Eliminar gym_user membership
+    // Eliminar gym_user
     await this.gymUsersRepo.delete(gymUser.id);
 
-    // OPCIONAL: Si user no tiene más memberships, eliminar user global
-    const otherMemberships = await this.gymUsersRepo.count({ where: { userId: gymUser.userId } });
-    if (otherMemberships === 0) {
-      await this.usersRepo.softDelete(gymUser.userId);
-    }
+    // Eliminar user permanentemente
+    await this.usersRepo.delete(gymUser.userId);
 
-    return { id: userId };
+    return { id: userId, message: 'Cliente eliminado permanentemente' };
+  }
+
+  /**
+   * Lista clientes eliminados (en el basurero)
+   */
+  async findDeleted(gymId: string) {
+    const result = await this.usersRepo
+      .createQueryBuilder('u')
+      .innerJoin('gym_users', 'gu', 'gu.user_id = u.id')
+      .innerJoin('clients', 'c', 'c.gym_user_id = gu.id')
+      .where('gu.gym_id = :gymId', { gymId })
+      .andWhere('gu.role = :role', { role: RoleEnum.CLIENT })
+      .andWhere('u.deleted_at IS NOT NULL')
+      .withDeleted()
+      .select([
+        'u.id as id',
+        'u.email as email',
+        'u.first_name as "firstName"',
+        'u.last_name as "lastName"',
+        'u.full_name as "fullName"',
+        'u.deleted_at as "deletedAt"',
+      ])
+      .getRawMany();
+
+    return { data: result, total: result.length };
   }
 
   // --------- Emergency contacts helpers (opcionales) ---------

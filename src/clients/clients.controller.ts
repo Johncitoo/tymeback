@@ -79,6 +79,26 @@ export class ClientsController {
     return this.clientsService.remove(id, user.gymId);
   }
 
+  // ---- Basurero (soft delete) ----
+
+  @Get('trash/list')
+  @Roles(RoleEnum.ADMIN)
+  findDeleted(@CurrentUser() user: JwtUser) {
+    return this.clientsService.findDeleted(user.gymId);
+  }
+
+  @Post(':id/restore')
+  @Roles(RoleEnum.ADMIN)
+  restore(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.clientsService.restore(id, user.gymId);
+  }
+
+  @Delete(':id/permanent')
+  @Roles(RoleEnum.ADMIN)
+  removePermanently(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.clientsService.removePermanently(id, user.gymId);
+  }
+
   // ---- Nested: emergency contacts ----
 
   @Get(':id/emergency-contacts')

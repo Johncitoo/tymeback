@@ -16,10 +16,19 @@ export class AuthController {
     // gymUser puede ser null para SUPER_ADMIN, pero siempre tendrá un rol
     const role = gymUser?.role || 'SUPER_ADMIN';
     
+    // Obtener membershipStatus si es cliente
+    let membershipStatus: 'NONE' | 'ACTIVE' | 'EXPIRED' | undefined = undefined;
+    if (role === 'CLIENT') {
+      membershipStatus = await this.auth.getMembershipStatus(user.id, gymId);
+    }
+    
     const accessToken = this.auth.signToken(user, gymId, role as any);
     return {
       access_token: accessToken,
-      user: this.auth.toAuthUser(user, gymId, role as any),
+      user: {
+        ...this.auth.toAuthUser(user, gymId, role as any),
+        membershipStatus,
+      },
     };
   }
 

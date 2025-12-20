@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, DataSource } from 'typeorm';
 import * as crypto from 'crypto';
 import { User, RoleEnum } from '../users/entities/user.entity';
 import { AuthToken, TokenTypeEnum } from './entities/auth-token.entity';
@@ -28,6 +28,7 @@ export class AuthService {
     @InjectRepository(AuthToken) private readonly tokensRepo: Repository<AuthToken>,
     private readonly jwtService: JwtService,
     private readonly communicationsService: CommunicationsService,
+    private readonly dataSource: DataSource,
   ) {}
 
   private hashPassword(plain: string): string {
@@ -118,6 +119,50 @@ export class AuthService {
     }
 
     return { user, gymUser, gymId: gym.id };
+  }
+
+  /**
+   * Obtiene el estado de membresía de un cliente
+   * NONE: Sin membresía activa
+   * TRIAL: En período de prueba (si implementas)
+   * ACTIVE: Membresía activa y vigente
+   * EXPIRED: Membresía vencida
+   */
+  async getMembershipStatus(userId: string, gymId: string): Promise<'NONE' | 'ACTIVE' | 'EXPIRED'> {
+    // Solo aplica para clientes
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId, gymId, role: RoleEnum.CLIENT },
+    });
+
+    if (!gymUser) {
+      // No es cliente o no pertenece a este gym
+      return 'NONE';
+    }
+
+    // Consultar v_active_memberships (vista que ya tienes)
+    const activeMembership = await this.dataSource.query(
+      `SELECT * FROM v_active_memberships WHERE client_id = $1 AND gym_id = $2 LIMIT 1`,
+      [userId, gymId]
+    );
+
+    if (activeMembership && activeMembership.length > 0) {
+      return 'ACTIVE';
+    }
+
+    // Verificar si tiene membresías expiradas
+    const expiredMembership = await this.dataSource.query(
+      `SELECT * FROM memberships m 
+       INNER JOIN gym_users gu ON gu.id = m.gym_user_id 
+       WHERE gu.user_id = $1 AND gu.gym_id = $2 AND m.end_date < NOW() 
+       LIMIT 1`,
+      [userId, gymId]
+    );
+
+    if (expiredMembership && expiredMembership.length > 0) {
+      return 'EXPIRED';
+    }
+
+    return 'NONE';
   }
 
   signToken(user: User, gymId: string, role: RoleEnum) {
