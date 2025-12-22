@@ -13,6 +13,7 @@ export enum MassEmailStatus {
 }
 
 export enum RecipientFilterType {
+  ALL_USERS = 'ALL_USERS',
   ALL_ACTIVE = 'ALL_ACTIVE',
   ALL_INACTIVE = 'ALL_INACTIVE',
   SPECIFIC_USERS = 'SPECIFIC_USERS',

@@ -122,32 +122,32 @@ export class AutomatedEmailsService {
       .innerJoin('gym_users', 'gu', 'gu.user_id = user.id AND gu.gym_id = :gymId', { gymId })
       .where('gu.role = :role', { role: 'CLIENT' });
 
+    // Filtro por todos los usuarios (sin filtro de activo/inactivo)
+    if (dto.filterType === 'ALL_USERS') {
+      // No aplicar filtro de is_active, traer todos
+    }
     // Filtro por estado activo/inactivo
-    if (dto.filterType === 'ALL_ACTIVE') {
+    else if (dto.filterType === 'ALL_ACTIVE') {
       query = query.andWhere('user.is_active = true');
     } else if (dto.filterType === 'ALL_INACTIVE') {
       query = query.andWhere('user.is_active = false');
     }
-
     // Filtro por usuarios específicos
-    if (dto.filterType === 'SPECIFIC_USERS' && dto.userIds && dto.userIds.length > 0) {
+    else if (dto.filterType === 'SPECIFIC_USERS' && dto.userIds && dto.userIds.length > 0) {
       query = query.andWhere('user.id IN (:...userIds)', { userIds: dto.userIds });
     }
-
     // Filtro por membresía
-    if (dto.filterType === 'BY_MEMBERSHIP' && dto.membershipIds && dto.membershipIds.length > 0) {
+    else if (dto.filterType === 'BY_MEMBERSHIP' && dto.membershipIds && dto.membershipIds.length > 0) {
       query = query
         .innerJoin('memberships', 'm', 'm.client_gym_user_id = gu.id')
         .andWhere('m.plan_id IN (:...membershipIds)', { membershipIds: dto.membershipIds });
     }
-
     // Filtro por género
-    if (dto.filterType === 'BY_GENDER' && dto.gender) {
+    else if (dto.filterType === 'BY_GENDER' && dto.gender) {
       query = query.andWhere('user.gender = :gender', { gender: dto.gender });
     }
-
     // Filtros personalizados
-    if (dto.filterType === 'CUSTOM') {
+    else if (dto.filterType === 'CUSTOM') {
       if (dto.gender) {
         query = query.andWhere('user.gender = :gender', { gender: dto.gender });
       }
