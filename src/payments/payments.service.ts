@@ -124,9 +124,8 @@ export class PaymentsService {
     // 2. Crear payment_item
     const paymentItem = this.itemsRepo.create({
       paymentId: saved.id,
-      clientId: dto.clientId,
+      clientGymUserId: clientGymUser.id, // ✅ Usar gym_user_id del cliente
       planId: dto.planId,
-      quantity: 1,
       unitPriceClp: plan.priceClp,
       discountClp, // ✅ DESCUENTO
       finalAmountClp, // ✅ MONTO FINAL
@@ -260,20 +259,28 @@ export class PaymentsService {
         
         // Obtener datos del cliente si existe
         let client: any = null;
-        if (firstItem?.clientId) {
-          const userRecord = await this.usersRepo.findOne({
-            where: { id: firstItem.clientId },
-            select: ['id', 'fullName', 'email', 'phone', 'avatarUrl'],
+        if (firstItem?.clientGymUserId) {
+          // Obtener el gym_user para luego obtener el user
+          const gymUser = await this.gymUsersRepo.findOne({
+            where: { id: firstItem.clientGymUserId },
+            select: ['userId'],
           });
           
-          if (userRecord) {
-            client = {
-              id: userRecord.id,
-              fullName: userRecord.fullName,
-              email: userRecord.email,
-              phone: userRecord.phone,
-              avatar: userRecord.avatarUrl,
-            };
+          if (gymUser) {
+            const userRecord = await this.usersRepo.findOne({
+              where: { id: gymUser.userId },
+              select: ['id', 'fullName', 'email', 'phone', 'avatarUrl'],
+            });
+            
+            if (userRecord) {
+              client = {
+                id: userRecord.id,
+                fullName: userRecord.fullName,
+                email: userRecord.email,
+                phone: userRecord.phone,
+                avatar: userRecord.avatarUrl,
+              };
+            }
           }
         }
         
@@ -303,7 +310,7 @@ export class PaymentsService {
           notes: payment.notes,
           receiptFileId: payment.receiptFileId, // ✅ INCLUIR
           createdAt: payment.createdAt,
-          clientId: firstItem?.clientId,
+          clientId: client?.id, // ✅ ID del usuario (no del gym_user)
           planId: firstItem?.planId,
           client,
           plan,

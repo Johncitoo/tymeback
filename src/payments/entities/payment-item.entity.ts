@@ -22,14 +22,11 @@ export class PaymentItem {
   // @JoinColumn({ name: 'payment_id' })
   // payment!: Payment;
 
-  @Column('uuid', { name: 'client_id' })
-  clientId!: string;
+  @Column('uuid', { name: 'client_gym_user_id' })
+  clientGymUserId!: string;
 
   @Column('uuid', { name: 'plan_id' })
   planId!: string;
-
-  @Column('int', { default: 1 })
-  quantity!: number;
 
   @Column('int', { name: 'unit_price_clp' })
   unitPriceClp!: number;
