@@ -288,7 +288,7 @@ export class AutomatedEmailsService {
     name: string;
     subject: string;
     contentBody: string;
-    variables: string[];
+    variables: Record<string, string>;
   } {
     switch (type) {
       case AutomatedEmailType.PASSWORD_RESET:
@@ -297,7 +297,7 @@ export class AutomatedEmailsService {
           subject: 'Recuperación de Contraseña',
           contentBody:
             'Hola {nombre},\n\nHemos recibido una solicitud para restablecer tu contraseña.\n\nHaz clic en el siguiente enlace para crear una nueva contraseña:\n{resetLink}\n\nEste enlace expirará en 1 hora.\n\nSi no solicitaste este cambio, puedes ignorar este mensaje.',
-          variables: ['nombre', 'resetLink'],
+          variables: { nombre: 'Nombre del usuario', resetLink: 'Enlace de recuperación' },
         };
 
       case AutomatedEmailType.PAYMENT_CONFIRMATION:
@@ -306,7 +306,7 @@ export class AutomatedEmailsService {
           subject: '✅ Confirmación de Pago',
           contentBody:
             'Hola {nombre},\n\nTu pago ha sido procesado exitosamente.\n\nPlan: {plan}\nMonto: {monto} CLP\nFecha: {fecha}\n\n¡Tu membresía está activa! Ya puedes disfrutar de todos los beneficios.',
-          variables: ['nombre', 'plan', 'monto', 'fecha'],
+          variables: { nombre: 'Nombre del usuario', plan: 'Nombre del plan', monto: 'Monto pagado', fecha: 'Fecha del pago' },
         };
 
       case AutomatedEmailType.MEMBERSHIP_EXPIRATION:
@@ -315,7 +315,7 @@ export class AutomatedEmailsService {
           subject: '⏰ Tu Membresía Vence Pronto',
           contentBody:
             'Hola {nombre},\n\nTu membresía "{plan}" vence en {dias} días (el {fecha}).\n\nPara continuar disfrutando de nuestros servicios, recuerda renovar tu membresía antes del vencimiento.\n\n¡Te esperamos!',
-          variables: ['nombre', 'plan', 'dias', 'fecha'],
+          variables: { nombre: 'Nombre del usuario', plan: 'Nombre del plan', dias: 'Días restantes', fecha: 'Fecha de vencimiento' },
         };
 
       case AutomatedEmailType.WELCOME:
@@ -324,7 +324,7 @@ export class AutomatedEmailsService {
           subject: '🎉 ¡Bienvenido a Nuestro Gimnasio!',
           contentBody:
             'Hola {nombre},\n\n¡Bienvenido a nuestra familia!\n\nEstamos emocionados de tenerte con nosotros. Tu cuenta ha sido creada exitosamente.\n\nPuedes iniciar sesión en nuestra plataforma con tu email y la contraseña que elegiste.\n\n¡Nos vemos en el gimnasio!',
-          variables: ['nombre'],
+          variables: { nombre: 'Nombre del usuario' },
         };
 
       case AutomatedEmailType.ACCOUNT_INACTIVE:
@@ -333,7 +333,7 @@ export class AutomatedEmailsService {
           subject: '⚠️ Tu Cuenta Está Inactiva',
           contentBody:
             'Hola {nombre},\n\nTu cuenta se encuentra temporalmente inactiva debido a que tu membresía ha vencido y no se ha registrado un nuevo pago.\n\nPara reactivar tu cuenta y continuar accediendo a nuestros servicios, por favor realiza el pago de tu membresía.\n\nSi ya realizaste el pago, este mensaje se actualizará automáticamente en las próximas horas.\n\nPara más información, contáctanos.',
-          variables: ['nombre'],
+          variables: { nombre: 'Nombre del usuario' },
         };
 
       default:
@@ -341,7 +341,7 @@ export class AutomatedEmailsService {
           name: 'Plantilla Genérica',
           subject: 'Notificación',
           contentBody: 'Hola {nombre},\n\n[Contenido del mensaje]',
-          variables: ['nombre'],
+          variables: { nombre: 'Nombre del usuario' },
         };
     }
   }

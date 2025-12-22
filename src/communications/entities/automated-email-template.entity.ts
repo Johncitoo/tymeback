@@ -43,9 +43,9 @@ export class AutomatedEmailTemplate {
   @Column('text', { name: 'content_body' })
   contentBody!: string;
 
-  // Variables disponibles para este tipo de correo
-  @Column('jsonb', { name: 'available_variables', default: '[]' })
-  availableVariables!: string[];
+  // Variables disponibles para este tipo de correo (key: descripción)
+  @Column('jsonb', { name: 'available_variables', default: '{}' })
+  availableVariables!: Record<string, string>;
 
   @Column('boolean', { name: 'is_active', default: true })
   isActive!: boolean;
