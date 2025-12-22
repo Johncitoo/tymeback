@@ -123,6 +123,7 @@ export class PaymentsService {
 
     // 2. Crear payment_item
     const paymentItem = this.itemsRepo.create({
+      gymId: dto.gymId,
       paymentId: saved.id,
       clientGymUserId: clientGymUser.id, // ✅ Usar gym_user_id del cliente
       planId: dto.planId,
@@ -260,27 +261,30 @@ export class PaymentsService {
         // Obtener datos del cliente si existe
         let client: any = null;
         if (firstItem?.clientGymUserId) {
-          // Obtener el gym_user para luego obtener el user
-          const gymUser = await this.gymUsersRepo.findOne({
-            where: { id: firstItem.clientGymUserId },
-            select: ['userId'],
-          });
-          
-          if (gymUser) {
-            const userRecord = await this.usersRepo.findOne({
-              where: { id: gymUser.userId },
-              select: ['id', 'fullName', 'email', 'phone', 'avatarUrl'],
+          try {
+            // Obtener el gym_user para luego obtener el user
+            const gymUser = await this.gymUsersRepo.findOne({
+              where: { id: firstItem.clientGymUserId },
             });
             
-            if (userRecord) {
-              client = {
-                id: userRecord.id,
-                fullName: userRecord.fullName,
-                email: userRecord.email,
-                phone: userRecord.phone,
-                avatar: userRecord.avatarUrl,
-              };
+            if (gymUser?.userId) {
+              const userRecord = await this.usersRepo.findOne({
+                where: { id: gymUser.userId },
+                select: ['id', 'fullName', 'email', 'phone', 'avatarUrl'],
+              });
+              
+              if (userRecord) {
+                client = {
+                  id: userRecord.id,
+                  fullName: userRecord.fullName,
+                  email: userRecord.email,
+                  phone: userRecord.phone,
+                  avatar: userRecord.avatarUrl,
+                };
+              }
             }
+          } catch (err) {
+            console.error('Error loading client for payment:', payment.id, err);
           }
         }
         

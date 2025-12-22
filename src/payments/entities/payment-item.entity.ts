@@ -14,6 +14,9 @@ export class PaymentItem {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Column('uuid', { name: 'gym_id' })
+  gymId!: string;
+
   @Column('uuid', { name: 'payment_id' })
   paymentId!: string;
 
