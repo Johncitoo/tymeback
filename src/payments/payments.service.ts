@@ -262,22 +262,16 @@ export class PaymentsService {
         let client: any = null;
         if (firstItem?.clientGymUserId) {
           try {
-            console.log('🔍 Buscando cliente para payment:', payment.id, 'clientGymUserId:', firstItem.clientGymUserId);
-            
             // Obtener el gym_user para luego obtener el user
             const gymUser = await this.gymUsersRepo.findOne({
               where: { id: firstItem.clientGymUserId },
             });
-            
-            console.log('📋 GymUser encontrado:', gymUser ? `userId: ${gymUser.userId}` : 'NULL');
             
             if (gymUser?.userId) {
               const userRecord = await this.usersRepo.findOne({
                 where: { id: gymUser.userId },
                 select: ['id', 'fullName', 'email', 'phone', 'avatarUrl'],
               });
-              
-              console.log('👤 User encontrado:', userRecord ? userRecord.fullName : 'NULL');
               
               if (userRecord) {
                 client = {
@@ -290,10 +284,8 @@ export class PaymentsService {
               }
             }
           } catch (err) {
-            console.error('❌ Error loading client for payment:', payment.id, err);
+            console.error('Error loading client for payment:', payment.id, err);
           }
-        } else {
-          console.log('⚠️ Payment sin clientGymUserId:', payment.id);
         }
         
         // Obtener datos del plan si existe
