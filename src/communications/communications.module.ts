@@ -3,12 +3,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from '@nestjs/config';
 import { CommunicationsService } from './communications.service';
+import { AutomatedEmailsService } from './automated-emails.service';
 import { CommunicationsController } from './communications.controller';
 import { EmailTemplate } from './entities/email-template.entity';
 import { EmailCampaign } from './entities/email-campaign.entity';
 import { CampaignRecipient } from './entities/campaign-recipient.entity';
 import { EmailLog } from './entities/email-log.entity';
 import { MembershipReminder } from './entities/membership-reminder.entity';
+import { AutomatedEmailTemplate } from './entities/automated-email-template.entity';
+import { MassEmail } from './entities/mass-email.entity';
 import { MailerModule } from './mailer/mailer.module';
 import { User } from '../users/entities/user.entity';
 import { GymUser } from '../gym-users/entities/gym-user.entity';
@@ -23,6 +26,8 @@ import { Plan } from '../plans/entities/plan.entity';
       CampaignRecipient,
       EmailLog,
       MembershipReminder,
+      AutomatedEmailTemplate,
+      MassEmail,
       User,
       GymUser,
       Membership,
@@ -32,7 +37,7 @@ import { Plan } from '../plans/entities/plan.entity';
     MailerModule,
   ],
   controllers: [CommunicationsController],
-  providers: [CommunicationsService],
-  exports: [CommunicationsService, TypeOrmModule],
+  providers: [CommunicationsService, AutomatedEmailsService],
+  exports: [CommunicationsService, AutomatedEmailsService, TypeOrmModule],
 })
 export class CommunicationsModule {}

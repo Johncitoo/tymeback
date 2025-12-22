@@ -8,6 +8,7 @@ import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { MembershipsService } from './memberships.service';
 import { MembershipsController } from './memberships.controller';
 import { MembershipRemindersService } from './membership-reminders.service';
+import { MembershipStatusService } from './membership-status.service';
 import { CommunicationsModule } from '../communications/communications.module';
 
 @Module({
@@ -15,8 +16,8 @@ import { CommunicationsModule } from '../communications/communications.module';
     TypeOrmModule.forFeature([Membership, Plan, User, Payment, GymUser]),
     CommunicationsModule,
   ],
-  providers: [MembershipsService, MembershipRemindersService],
+  providers: [MembershipsService, MembershipRemindersService, MembershipStatusService],
   controllers: [MembershipsController],
-  exports: [TypeOrmModule, MembershipsService],
+  exports: [TypeOrmModule, MembershipsService, MembershipStatusService],
 })
 export class MembershipsModule {}

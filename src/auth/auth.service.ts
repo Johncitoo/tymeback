@@ -87,11 +87,20 @@ export class AuthService {
 
     // 2. Buscar usuario global
     const user = await this.findByLogin(login);
-    if (!user || !user.isActive || !user.hashedPassword) {
-      console.log('❌ [AUTH] Usuario no encontrado o inactivo:', { userFound: !!user, isActive: user?.isActive, hasPassword: !!user?.hashedPassword });
+    if (!user || !user.hashedPassword) {
+      console.log('❌ [AUTH] Usuario no encontrado:', { userFound: !!user, hasPassword: !!user?.hashedPassword });
       throw new UnauthorizedException('Credenciales inválidas');
     }
-    console.log('✅ [AUTH] Usuario encontrado:', { id: user.id, email: user.email, hasPassword: !!user.hashedPassword });
+
+    // Verificar si el usuario está activo
+    if (!user.isActive) {
+      console.log('⚠️ [AUTH] Usuario inactivo (membresía vencida):', { userId: user.id });
+      throw new UnauthorizedException(
+        'Tu cuenta se encuentra temporalmente inactiva. Tu membresía ha vencido y no se ha registrado un nuevo pago. Por favor, contacta con el gimnasio para renovar tu membresía y reactivar tu acceso.'
+      );
+    }
+
+    console.log('✅ [AUTH] Usuario encontrado:', { id: user.id, email: user.email, isActive: user.isActive, hasPassword: !!user.hashedPassword });
 
     // 3. Verificar password
     console.log('🔑 [AUTH] Verificando password...');

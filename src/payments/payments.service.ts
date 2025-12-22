@@ -9,6 +9,7 @@ import { Plan } from '../plans/entities/plan.entity';
 import { Client } from '../clients/entities/client.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipsService } from '../memberships/memberships.service';
+import { MembershipStatusService } from '../memberships/membership-status.service';
 import { CommunicationsService } from '../communications/communications.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -30,6 +31,7 @@ export class PaymentsService {
     @InjectRepository(Client) private readonly clientsRepo: Repository<Client>,
     @InjectRepository(Membership) private readonly membershipsRepo: Repository<Membership>,
     private readonly memberships: MembershipsService,
+    private readonly membershipStatus: MembershipStatusService,
     private readonly commsService: CommunicationsService,
     private readonly promotionsService: PromotionsService,
   ) {}
@@ -203,7 +205,10 @@ export class PaymentsService {
       sessionsQuota: membership.sessionsQuota,
     });
 
-    // 4. Enviar email de confirmación al cliente
+    // 4. Activar usuario (marcar como activo al registrar pago)
+    await this.membershipStatus.activateUserOnPayment(dto.clientId);
+
+    // 5. Enviar email de confirmación al cliente
     const clientUser = await this.usersRepo.findOne({ where: { id: dto.clientId } });
     if (clientUser?.email) {
       try {
