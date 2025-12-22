@@ -22,7 +22,7 @@ export class SendMassEmailDto {
   @IsString()
   contentBody: string;
 
-  @IsEnum(['ALL_ACTIVE', 'ALL_INACTIVE', 'SPECIFIC_USERS', 'BY_MEMBERSHIP', 'BY_GENDER', 'CUSTOM'])
+  @IsEnum(['ALL_USERS', 'ALL_ACTIVE', 'ALL_INACTIVE', 'SPECIFIC_USERS', 'BY_MEMBERSHIP', 'BY_GENDER', 'CUSTOM'])
   filterType: string;
 
   @IsOptional()
