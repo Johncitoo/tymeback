@@ -15,6 +15,7 @@ export enum FilePurposeEnum {
   EXERCISE_IMAGE = 'EXERCISE_IMAGE',
   MACHINE_IMAGE = 'MACHINE_IMAGE',
   PROOF = 'PROOF', // comprobante pago
+  PAYMENT_RECEIPT = 'PAYMENT_RECEIPT', // comprobante de pago
   INBODY_PDF = 'INBODY_PDF',
   PROGRESS_PHOTO = 'PROGRESS_PHOTO',
   CERTIFICATE = 'CERTIFICATE', // títulos entrenador

@@ -32,8 +32,8 @@ export class MassEmail {
   @Column('uuid', { name: 'gym_id' })
   gymId!: string;
 
-  @Column('uuid', { name: 'created_by_user_id' })
-  createdByUserId!: string;
+  @Column('uuid', { name: 'created_by_user_id', nullable: true })
+  createdByUserId?: string;
 
   @Column('varchar', { length: 200 })
   subject!: string;
