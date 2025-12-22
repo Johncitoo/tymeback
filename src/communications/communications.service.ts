@@ -572,6 +572,8 @@ export class CommunicationsService {
     planName: string,
     amount: number,
     paymentDate: string,
+    discountClp?: number,
+    promotionName?: string,
   ) {
     const tpl = await this.tplRepo.findOne({
       where: { gymId, isActive: true },
@@ -589,12 +591,18 @@ export class CommunicationsService {
     newExpiry.setDate(newExpiry.getDate() + 30);
     const newExpiryStr = newExpiry.toISOString().slice(0, 10);
 
+    const originalAmount = discountClp ? amount + discountClp : amount;
+    const discountText = discountClp
+      ? `Descuento aplicado${promotionName ? ` (${promotionName})` : ''}: -${discountClp.toLocaleString('es-CL')} CLP. Precio original: ${originalAmount.toLocaleString('es-CL')} CLP.`
+      : '';
+
     const html = this.interpolate(tpl.html, {
       nombre: clientName || 'Cliente',
       plan: planName,
       monto: amount.toString(),
       fecha_pago: paymentDate,
       nueva_fecha_vencimiento: newExpiryStr,
+      descuento: discountText,
     });
 
     try {
@@ -620,6 +628,92 @@ export class CommunicationsService {
       }));
       throw e;
     }
+  }
+
+  async sendExpirationReminder(
+    gymId: string,
+    userId: string,
+    userEmail: string,
+    userName: string,
+    planName: string,
+    expiryDate: string,
+    daysUntilExpiry: number,
+  ): Promise<void> {
+    const urgencyColor = daysUntilExpiry === 1 ? '#dc2626' : daysUntilExpiry === 3 ? '#f59e0b' : '#3b82f6';
+    const urgencyText = daysUntilExpiry === 1 ? '¡MAÑANA!' : daysUntilExpiry === 3 ? 'en 3 días' : 'en 7 días';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Recordatorio de Vencimiento de Membresía</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: ${urgencyColor}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 28px;">⏰ Tu Membresía Vence ${urgencyText}</h1>
+        </div>
+        
+        <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb;">
+          <p style="font-size: 18px; margin-bottom: 20px;">Hola <strong>${userName}</strong>,</p>
+          
+          <p>Te recordamos que tu membresía <strong>${planName}</strong> está próxima a vencer.</p>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${urgencyColor};">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; font-weight: 600;">Plan:</td>
+                <td style="padding: 8px 0;">${planName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 600;">Fecha de vencimiento:</td>
+                <td style="padding: 8px 0; font-size: 18px; color: ${urgencyColor}; font-weight: 700;">${expiryDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 600;">Días restantes:</td>
+                <td style="padding: 8px 0;"><strong>${daysUntilExpiry} día${daysUntilExpiry !== 1 ? 's' : ''}</strong></td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0; color: #92400e;">
+              <strong>⚠️ Importante:</strong><br/>
+              Para continuar disfrutando de nuestros servicios, recuerda renovar tu membresía antes del vencimiento.
+            </p>
+          </div>
+          
+          <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
+            Si ya realizaste tu pago, por favor ignora este mensaje.
+          </p>
+          
+          <p style="margin-top: 20px;">
+            ¡Te esperamos!<br/>
+            <strong>Equipo del Gimnasio</strong>
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #9ca3af;">
+          <p>Este es un mensaje automático, por favor no respondas a este correo.</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.mailer.send(
+      userEmail,
+      `⏰ Tu membresía vence ${urgencyText} - ${planName}`,
+      html
+    );
+
+    await this.logRepo.save({
+      gymId,
+      userId,
+      recipientEmail: userEmail,
+      subject: `Recordatorio de vencimiento - ${planName}`,
+      status: EmailLogStatusEnum.SENT,
+      sentAt: new Date(),
+    });
   }
 
   // ---------- Email Logs ----------

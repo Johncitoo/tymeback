@@ -11,12 +11,14 @@ import { Client } from '../clients/entities/client.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipsModule } from '../memberships/memberships.module';
 import { CommunicationsModule } from '../communications/communications.module';
+import { PromotionsModule } from '../promotions/promotions.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, PaymentItem, User, GymUser, Plan, Client, Membership]),
-    MembershipsModule, // para crear membresías tras pagar
+    MembershipsModule,
     CommunicationsModule,
+    PromotionsModule,
   ],
   providers: [PaymentsService],
   controllers: [PaymentsController],

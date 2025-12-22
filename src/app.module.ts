@@ -12,6 +12,7 @@ import { MachinesModule } from './machines/machines.module';
 import { ExercisesModule } from './exercises/exercises.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { SessionBurnsModule } from './session-burns/session-burns.module';
 import { RoutinesModule } from './routines/routines.module';
@@ -70,6 +71,7 @@ import { AuthSecurityModule } from './auth-security/auth-security.module';
     ExercisesModule,
     MembershipsModule,
     PaymentsModule,
+    PromotionsModule,
     AttendanceModule,
     SessionBurnsModule,
     RoutinesModule,

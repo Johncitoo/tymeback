@@ -33,6 +33,18 @@ export class CreatePaymentDto {
   @IsOptional() @IsString() backdatingReason?: string;
   @IsOptional() @IsString() note?: string;
 
+  /** Código de promoción opcional */
+  @IsOptional() @IsString() promotionCode?: string;
+
+  /** Descuento manual (si no usa código) */
+  @IsOptional() @IsInt() @Min(0) manualDiscountClp?: number;
+
+  /** Referencia de transacción (número de transferencia, cheque, etc.) */
+  @IsOptional() @IsString() transactionReference?: string;
+
+  /** Cambio inmediato de plan (vs próximo período) */
+  @IsOptional() applyImmediately?: boolean;
+
   /** ADMIN que registra */
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
     message: 'createdByUserId must be a valid UUID format'

@@ -10,6 +10,7 @@ import { Client } from '../clients/entities/client.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipsService } from '../memberships/memberships.service';
 import { CommunicationsService } from '../communications/communications.service';
+import { PromotionsService } from '../promotions/promotions.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 
 function computeNetVatFromGrossCLP(gross: number) {
@@ -30,6 +31,7 @@ export class PaymentsService {
     @InjectRepository(Membership) private readonly membershipsRepo: Repository<Membership>,
     private readonly memberships: MembershipsService,
     private readonly commsService: CommunicationsService,
+    private readonly promotionsService: PromotionsService,
   ) {}
 
   private async assertAdmin(byUserId: string, gymId: string) {
@@ -72,15 +74,46 @@ export class PaymentsService {
     });
     if (!client) throw new NotFoundException('Registro de cliente no encontrado');
 
+    // ✅ CALCULAR DESCUENTOS Y PROMOCIONES
+    let discountClp = 0;
+    let promotionId: string | null = null;
+    let promotionName: string | null = null;
+
+    if (dto.promotionCode) {
+      // Validar código promocional
+      const validation = await this.promotionsService.validatePromotion(
+        dto.gymId,
+        dto.promotionCode,
+        dto.planId,
+      );
+
+      if (!validation.valid) {
+        throw new BadRequestException(validation.message);
+      }
+
+      if (validation.promotion) {
+        discountClp = this.promotionsService.calculateDiscount(validation.promotion, plan.priceClp);
+        promotionId = validation.promotion.id;
+        promotionName = validation.promotion.name;
+        // Incrementar contador de usos
+        await this.promotionsService.incrementUsage(validation.promotion.id);
+      }
+    } else if (dto.manualDiscountClp && dto.manualDiscountClp > 0) {
+      // Descuento manual
+      discountClp = Math.min(dto.manualDiscountClp, plan.priceClp);
+    }
+
+    const finalAmountClp = plan.priceClp - discountClp;
+
     // 1. Crear el pago
     const pay = this.repo.create({
       gymId: dto.gymId,
       method: dto.method ?? PaymentMethodEnum.CASH,
       paidAt,
-      totalAmountClp: plan.priceClp,
+      totalAmountClp: finalAmountClp, // ✅ CON DESCUENTO APLICADO
       notes: dto.note ?? null,
       receiptUrl: null,
-      receiptFileId: dto.receiptFileId ?? null, // ✅ GUARDAR EL FILE ID
+      receiptFileId: dto.receiptFileId ?? null,
       processedByUserId: processedByUser?.id ?? null,
     });
 
@@ -93,9 +126,9 @@ export class PaymentsService {
       planId: dto.planId,
       quantity: 1,
       unitPriceClp: plan.priceClp,
-      discountClp: 0,
-      finalAmountClp: plan.priceClp,
-      promotionId: null,
+      discountClp, // ✅ DESCUENTO
+      finalAmountClp, // ✅ MONTO FINAL
+      promotionId, // ✅ ID DE PROMOCIÓN SI APLICA
     });
 
     const savedItem = await this.itemsRepo.save(paymentItem);
@@ -174,14 +207,17 @@ export class PaymentsService {
     const clientUser = await this.usersRepo.findOne({ where: { id: dto.clientId } });
     if (clientUser?.email) {
       try {
+        const promoName = promotionId ? (await this.promotionsService.findOne(promotionId)).name : undefined;
         await this.commsService.sendPaymentConfirmation(
           dto.gymId,
           clientUser.id,
           clientUser.email,
           clientUser.fullName,
           plan.name,
-          plan.priceClp,
+          finalAmountClp,
           paidAt.toISOString().slice(0, 10),
+          discountClp,
+          promoName,
         );
       } catch (emailErr) {
         console.error('Error sending payment confirmation email:', emailErr);
