@@ -127,11 +127,25 @@ export class PaymentsService {
       startsOn = today;
     }
 
-    // Calcular fecha de fin (duración basada en el plan, por defecto 30 días)
-    const durationDays = plan.durationDays ?? 30;
-    const endsOnDate = new Date(startsOn);
-    endsOnDate.setDate(endsOnDate.getDate() + durationDays - 1); // -1 porque ends_on es INCLUSIVO
-    const endsOn = endsOnDate.toISOString().slice(0, 10);
+    // Calcular fecha de fin usando MESES CALENDARIO (no días fijos)
+    // Si plan.durationMonths existe, usar meses (5 feb → 5 mar)
+    // Si solo tiene durationDays, usar días exactos (para planes semanales, etc.)
+    let endsOn: string;
+    
+    if (plan.durationMonths && plan.durationMonths > 0) {
+      // USAR MESES CALENDARIO - CORRECTO para facturación
+      // Ejemplo: 5 de febrero + 1 mes = 5 de marzo (no 30 días)
+      const endsOnDate = new Date(startsOn);
+      endsOnDate.setMonth(endsOnDate.getMonth() + plan.durationMonths);
+      endsOnDate.setDate(endsOnDate.getDate() - 1); // -1 día porque ends_on es INCLUSIVO
+      endsOn = endsOnDate.toISOString().slice(0, 10);
+    } else {
+      // USAR DÍAS EXACTOS para planes no mensuales (semanal, quincenal, etc.)
+      const durationDays = plan.durationDays ?? 30;
+      const endsOnDate = new Date(startsOn);
+      endsOnDate.setDate(endsOnDate.getDate() + durationDays - 1);
+      endsOn = endsOnDate.toISOString().slice(0, 10);
+    }
 
     // Crear la membresía
     const membership = this.membershipsRepo.create({
@@ -152,7 +166,7 @@ export class PaymentsService {
       planName: plan.name,
       startsOn,
       endsOn,
-      durationDays,
+      calculationMethod: plan.durationMonths ? `${plan.durationMonths} meses calendario` : `${plan.durationDays || 30} días exactos`,
       sessionsQuota: membership.sessionsQuota,
     });
 
