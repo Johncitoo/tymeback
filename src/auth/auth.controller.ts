@@ -90,6 +90,42 @@ export class AuthController {
 
   // ---------- Test Endpoints (solo para desarrollo) ----------
   
+  @Post('test/send-activation-email')
+  async testSendActivationEmail(@Body() dto: {
+    gymId: string;
+    userId: string;
+    toEmail: string;
+    userName: string;
+    activationToken: string;
+  }) {
+    await this.communications.sendAccountActivationEmail(
+      dto.gymId,
+      dto.userId,
+      dto.toEmail,
+      dto.userName,
+      dto.activationToken,
+    );
+    return { message: 'Correo de activación enviado' };
+  }
+
+  @Post('test/send-password-reset')
+  async testSendPasswordReset(@Body() dto: {
+    gymId: string;
+    userId: string;
+    toEmail: string;
+    userName: string;
+    resetToken: string;
+  }) {
+    await this.communications.sendPasswordResetEmail(
+      dto.gymId,
+      dto.userId,
+      dto.toEmail,
+      dto.userName,
+      dto.resetToken,
+    );
+    return { message: 'Correo de recuperación de contraseña enviado' };
+  }
+
   @Post('test/send-payment-confirmation')
   async testSendPaymentConfirmation(@Body() dto: {
     gymId: string;
@@ -115,15 +151,25 @@ export class AuthController {
     return { message: 'Correo de confirmación de pago enviado' };
   }
 
-  @Post('test/send-password-reset')
-  async testSendPasswordReset(@Body() dto: {
+  @Post('test/send-expiration-reminder')
+  async testSendExpirationReminder(@Body() dto: {
     gymId: string;
     userId: string;
     toEmail: string;
     userName: string;
-    resetToken: string;
+    planName: string;
+    expiryDate: string;
+    daysUntilExpiry: number;
   }) {
-    // Este endpoint es temporal para probar el correo
-    return { message: 'Usa /auth/forgot-password en producción' };
+    await this.communications.sendExpirationReminder(
+      dto.gymId,
+      dto.userId,
+      dto.toEmail,
+      dto.userName,
+      dto.planName,
+      dto.expiryDate,
+      dto.daysUntilExpiry,
+    );
+    return { message: 'Correo de recordatorio de vencimiento enviado' };
   }
 }
