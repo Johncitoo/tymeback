@@ -1,10 +1,15 @@
 const pg = require('pg');
 const { Client } = pg;
 
-const DATABASE_URL = 'postgresql://postgres:JqgOoQyCAzCBDuftAsvDPDMLMCDTlqZb@autorack.proxy.rlwy.net:28687/railway';
+const DATABASE_URL = 'postgresql://postgres:DanpBohSbQluYBnEIpTGDoYVCDiUslqG@maglev.proxy.rlwy.net:51300/railway';
 
 async function runMigration() {
-  const client = new Client({ connectionString: DATABASE_URL });
+  const client = new Client({ 
+    connectionString: DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
 
   try {
     await client.connect();
