@@ -4,10 +4,14 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import type { JwtUser } from './current-user.decorator';
+import { CommunicationsService } from '../communications/communications.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly communications: CommunicationsService,
+  ) {}
 
   @Post('login')
   async login(@Body() dto: LoginDto) {
@@ -86,6 +90,31 @@ export class AuthController {
 
   // ---------- Test Endpoints (solo para desarrollo) ----------
   
+  @Post('test/send-payment-confirmation')
+  async testSendPaymentConfirmation(@Body() dto: {
+    gymId: string;
+    toEmail: string;
+    clientName: string;
+    planName: string;
+    amount: number;
+    paymentDate: string;
+    discountClp?: number;
+    promotionName?: string;
+  }) {
+    await this.communications.sendPaymentConfirmation(
+      dto.gymId,
+      'test-client-id',
+      dto.toEmail,
+      dto.clientName,
+      dto.planName,
+      dto.amount,
+      dto.paymentDate,
+      dto.discountClp,
+      dto.promotionName,
+    );
+    return { message: 'Correo de confirmación de pago enviado' };
+  }
+
   @Post('test/send-password-reset')
   async testSendPasswordReset(@Body() dto: {
     gymId: string;
