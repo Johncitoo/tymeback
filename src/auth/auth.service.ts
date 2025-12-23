@@ -150,8 +150,8 @@ export class AuthService {
 
     // Consultar v_active_memberships (vista que ya tienes)
     const activeMembership = await this.dataSource.query(
-      `SELECT * FROM v_active_memberships WHERE client_id = $1 AND gym_id = $2 LIMIT 1`,
-      [userId, gymId]
+      `SELECT * FROM v_active_memberships WHERE client_gym_user_id = $1 AND gym_id = $2 LIMIT 1`,
+      [gymUser.id, gymId]
     );
 
     if (activeMembership && activeMembership.length > 0) {
@@ -161,10 +161,9 @@ export class AuthService {
     // Verificar si tiene membresías expiradas
     const expiredMembership = await this.dataSource.query(
       `SELECT * FROM memberships m 
-       INNER JOIN gym_users gu ON gu.id = m.gym_user_id 
-       WHERE gu.user_id = $1 AND gu.gym_id = $2 AND m.end_date < NOW() 
+       WHERE m.client_gym_user_id = $1 AND m.gym_id = $2 AND m.ends_on < CURRENT_DATE
        LIMIT 1`,
-      [userId, gymId]
+      [gymUser.id, gymId]
     );
 
     if (expiredMembership && expiredMembership.length > 0) {
