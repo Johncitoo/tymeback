@@ -216,7 +216,7 @@ export class AuthService {
           phone: user.phone,
           rut: user.rut,
           isActive: user.isActive,
-          avatarFileId: user.avatarFileId,
+          avatarUrl: user.avatarUrl,
         };
       }
 
@@ -234,7 +234,7 @@ export class AuthService {
         phone: user.phone,
         rut: user.rut,
         isActive: user.isActive,
-        avatarFileId: user.avatarFileId,
+        avatarUrl: user.avatarUrl,
         // Datos específicos del cliente
         address: client.address,
         birthDate: client.birth_date,
