@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -10,7 +10,6 @@ import { AuthToken } from './entities/auth-token.entity';
 import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { Gym } from '../gyms/entities/gym.entity';
 import { CommunicationsModule } from '../communications/communications.module';
-import { ClientsModule } from '../clients/clients.module';
 
 // Tipos de 'ms' que usa jsonwebtoken para expiresIn
 import type { StringValue as MsStringValue } from 'ms';
@@ -40,7 +39,6 @@ function getExpires(): number | MsStringValue {
       signOptions: { expiresIn: JWT_EXPIRES },
     }),
     CommunicationsModule,
-    forwardRef(() => ClientsModule),
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],

@@ -173,6 +173,93 @@ export class AuthService {
     return 'NONE';
   }
 
+  /**
+   * Obtiene los datos completos de un cliente para el login
+   */
+  async getClientFullData(userId: string, gymId: string): Promise<any> {
+    try {
+      // Obtener gymUser del cliente
+      const gymUser = await this.gymUsersRepo.findOne({
+        where: { userId, gymId, role: RoleEnum.CLIENT },
+      });
+
+      if (!gymUser) {
+        return null;
+      }
+
+      // Obtener datos del usuario
+      const user = await this.usersRepo.findOne({ where: { id: userId } });
+      if (!user) {
+        return null;
+      }
+
+      // Obtener datos del cliente (tabla clients)
+      const clientData = await this.dataSource.query(
+        `SELECT c.*, p.name as plan_name, p.id as plan_id
+         FROM clients c
+         LEFT JOIN plans p ON c.plan_id = p.id
+         WHERE c.user_id = $1 AND c.gym_id = $2 AND c.deleted_at IS NULL
+         LIMIT 1`,
+        [userId, gymId]
+      );
+
+      if (!clientData || clientData.length === 0) {
+        // Si no hay registro en clients, devolver datos básicos
+        return {
+          id: user.id,
+          gymId,
+          role: 'CLIENT',
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          fullName: user.fullName,
+          phone: user.phone,
+          rut: user.rut,
+          isActive: user.isActive,
+          avatarFileId: user.avatarFileId,
+        };
+      }
+
+      const client = clientData[0];
+
+      // Construir objeto completo del cliente
+      return {
+        id: user.id,
+        gymId,
+        role: 'CLIENT',
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        fullName: user.fullName,
+        phone: user.phone,
+        rut: user.rut,
+        isActive: user.isActive,
+        avatarFileId: user.avatarFileId,
+        // Datos específicos del cliente
+        address: client.address,
+        birthDate: client.birth_date,
+        gender: client.gender,
+        sex: client.sex,
+        emergencyContact: client.emergency_contact_name ? {
+          name: client.emergency_contact_name,
+          phone: client.emergency_contact_phone,
+          relationship: client.emergency_contact_relationship,
+        } : undefined,
+        trainerId: client.trainer_id,
+        privateSessions: client.private_sessions || 0,
+        membershipExpiry: client.membership_expiry,
+        plan: client.plan_id ? {
+          id: client.plan_id,
+          name: client.plan_name,
+        } : undefined,
+        planId: client.plan_id,
+      };
+    } catch (error) {
+      console.error('Error obteniendo datos completos del cliente:', error);
+      return null;
+    }
+  }
+
   signToken(user: User, gymId: string, role: RoleEnum) {
     const payload = {
       sub: user.id,
