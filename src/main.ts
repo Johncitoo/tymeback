@@ -64,7 +64,7 @@ async function bootstrap() {
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        console.warn('⚠️  CORS bloqueado para:', origin);
+        console.warn('⚠️  CORS bloqueado para:',);
         callback(new Error('Not allowed by CORS'));
       }
     },
