@@ -60,7 +60,7 @@ async function sendTestEmails() {
       [testUser.id, activationToken, 'ACCOUNT_ACTIVATION']
     );
     
-    const activationResponse = await fetch(`${backendUrl}/auth/test/send-activation-email`, {
+    const activationResponse = await fetch(`${backendUrl}/api/auth/test/send-activation-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -83,7 +83,7 @@ async function sendTestEmails() {
       [testUser.id, resetToken, 'PASSWORD_RESET']
     );
     
-    const resetResponse = await fetch(`${backendUrl}/auth/test/send-password-reset`, {
+    const resetResponse = await fetch(`${backendUrl}/api/auth/test/send-password-reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -99,7 +99,7 @@ async function sendTestEmails() {
 
     // 3. Correo de Confirmación de Pago
     console.log('\n3️⃣ Enviando correo de confirmación de pago...');
-    const paymentResponse = await fetch(`${backendUrl}/auth/test/send-payment-confirmation`, {
+    const paymentResponse = await fetch(`${backendUrl}/api/auth/test/send-payment-confirmation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -122,7 +122,7 @@ async function sendTestEmails() {
     const expiryDate7 = new Date();
     expiryDate7.setDate(expiryDate7.getDate() + 7);
     
-    const reminder7Response = await fetch(`${backendUrl}/auth/test/send-expiration-reminder`, {
+    const reminder7Response = await fetch(`${backendUrl}/api/auth/test/send-expiration-reminder`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -143,7 +143,7 @@ async function sendTestEmails() {
     const expiryDate3 = new Date();
     expiryDate3.setDate(expiryDate3.getDate() + 3);
     
-    const reminder3Response = await fetch(`${backendUrl}/auth/test/send-expiration-reminder`, {
+    const reminder3Response = await fetch(`${backendUrl}/api/auth/test/send-expiration-reminder`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -164,7 +164,7 @@ async function sendTestEmails() {
     const expiryDate1 = new Date();
     expiryDate1.setDate(expiryDate1.getDate() + 1);
     
-    const reminder1Response = await fetch(`${backendUrl}/auth/test/send-expiration-reminder`, {
+    const reminder1Response = await fetch(`${backendUrl}/api/auth/test/send-expiration-reminder`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -185,7 +185,7 @@ async function sendTestEmails() {
     const expiredDate = new Date();
     expiredDate.setDate(expiredDate.getDate() - 5); // Expiró hace 5 días
     
-    const expiredResponse = await fetch(`${backendUrl}/auth/test/send-membership-expired`, {
+    const expiredResponse = await fetch(`${backendUrl}/api/auth/test/send-membership-expired`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -25,6 +25,7 @@ import { Membership } from '../memberships/entities/membership.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Plan } from '../plans/entities/plan.entity';
 import { GymUser } from '../gym-users/entities/gym-user.entity';
+import { Gym } from '../gyms/entities/gym.entity';
 
 @Injectable()
 export class CommunicationsService {
@@ -38,6 +39,7 @@ export class CommunicationsService {
     @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
     @InjectRepository(Membership) private readonly memRepo: Repository<Membership>,
     @InjectRepository(Plan) private readonly plansRepo: Repository<Plan>,
+    @InjectRepository(Gym) private readonly gymsRepo: Repository<Gym>,
     private readonly mailer: MailerService,
   ) {}
 
@@ -48,6 +50,11 @@ export class CommunicationsService {
 
   private todayISO(): string {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  private async getGymName(gymId: string): Promise<string> {
+    const gym = await this.gymsRepo.findOne({ where: { id: gymId } });
+    return gym?.name || 'TYME Gym';
   }
 
   // ---------- Templates ----------
@@ -415,10 +422,11 @@ export class CommunicationsService {
     userName: string,
     activationToken: string
   ) {
+    const gymName = await this.getGymName(gymId);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const activationLink = `${frontendUrl}/activate/${activationToken}`;
 
-    const subject = '¡Bienvenido a TYME Gym! Activa tu cuenta';
+    const subject = `¡Bienvenido a ${gymName}! Activa tu cuenta`;
     
     const html = `
 <!DOCTYPE html>
@@ -485,7 +493,7 @@ export class CommunicationsService {
 <body>
   <div class="container">
     <div class="header">
-      <h1>🏋️ TYME Gym</h1>
+      <h1>🏋️ ${gymName}</h1>
     </div>
     
     <div class="content">
@@ -522,7 +530,7 @@ export class CommunicationsService {
       
       <p>¡Nos emociona tenerte en nuestra comunidad!</p>
       
-      <p>Saludos,<br><strong>El equipo de TYME Gym</strong></p>
+      <p>Saludos,<br><strong>El equipo de ${gymName}</strong></p>
     </div>
     
     <div class="footer">
@@ -571,10 +579,11 @@ export class CommunicationsService {
     userName: string,
     resetToken: string,
   ) {
+    const gymName = await this.getGymName(gymId);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
 
-    const subject = 'Recuperación de Contraseña - TYME Gym';
+    const subject = `Recuperación de Contraseña - ${gymName}`;
     
     const html = `
 <!DOCTYPE html>
@@ -648,7 +657,7 @@ export class CommunicationsService {
 <body>
   <div class="container">
     <div class="header">
-      <h1>🔒 TYME Gym</h1>
+      <h1>🔒 ${gymName}</h1>
     </div>
     
     <div class="content">
@@ -681,7 +690,7 @@ export class CommunicationsService {
         <p style="margin: 5px 0;">Si NO solicitaste este cambio de contraseña, por favor <strong>ignora este correo</strong>. Tu cuenta permanecerá segura y nadie podrá cambiar tu contraseña sin este enlace.</p>
       </div>
       
-      <p>Saludos,<br><strong>El equipo de TYME Gym</strong></p>
+      <p>Saludos,<br><strong>El equipo de ${gymName}</strong></p>
     </div>
     
     <div class="footer">
@@ -745,7 +754,8 @@ export class CommunicationsService {
       ? `<p style="color: #10b981; font-weight: bold;">Descuento aplicado${promotionName ? ` (${promotionName})` : ''}: -${discountClp.toLocaleString('es-CL')} CLP. Precio original: ${originalAmount.toLocaleString('es-CL')} CLP.</p>`
       : '';
 
-    const subject = '✅ Confirmación de Pago - TYME Gym';
+    const gymName = await this.getGymName(gymId);
+    const subject = `✅ Confirmación de Pago - ${gymName}`;
     
     const html = `
 <!DOCTYPE html>
@@ -886,7 +896,7 @@ export class CommunicationsService {
       </p>
     </div>
     <div class="footer">
-      <p><strong>TYME Gym</strong></p>
+      <p><strong>${gymName}</strong></p>
       <p>Tu salud, nuestra misión</p>
       <p style="margin-top: 16px; font-size: 12px;">
         Si tienes alguna pregunta sobre este pago, por favor contáctanos.
@@ -1027,6 +1037,7 @@ export class CommunicationsService {
     planName: string,
     expiryDate: string,
   ): Promise<void> {
+    const gymName = await this.getGymName(gymId);
     const html = `
       <!DOCTYPE html>
       <html>
@@ -1177,7 +1188,7 @@ export class CommunicationsService {
             </p>
           </div>
           <div class="footer">
-            <p><strong>TYME Gym</strong></p>
+            <p><strong>${gymName}</strong></p>
             <p>¡Te extrañamos! Vuelve pronto 💙</p>
             <p style="margin-top: 16px; font-size: 12px;">
               Para más información, visita nuestro gimnasio o contáctanos.
