@@ -47,7 +47,7 @@ async function sendTestEmails() {
     console.log(`📧 Usuario: ${testUser.first_name} ${testUser.last_name} (${testUser.email})`);
 
     // Invocar endpoint de backend para enviar cada tipo de correo
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+    const backendUrl = 'https://tymeback-staging.up.railway.app';
     
     console.log('\n📬 Enviando correos de prueba...\n');
 

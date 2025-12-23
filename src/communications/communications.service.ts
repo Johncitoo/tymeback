@@ -734,16 +734,6 @@ export class CommunicationsService {
     discountClp?: number,
     promotionName?: string,
   ) {
-    const tpl = await this.tplRepo.findOne({
-      where: { gymId, isActive: true },
-      order: { createdAt: 'DESC' },
-    });
-
-    if (!tpl) {
-      console.log(`No payment confirmation template found for gym ${gymId}`);
-      return; // No hay plantilla activa
-    }
-
     // Calcular fecha de vencimiento (30 días desde hoy, ejemplo)
     const today = new Date();
     const newExpiry = new Date(today);
@@ -752,25 +742,168 @@ export class CommunicationsService {
 
     const originalAmount = discountClp ? amount + discountClp : amount;
     const discountText = discountClp
-      ? `Descuento aplicado${promotionName ? ` (${promotionName})` : ''}: -${discountClp.toLocaleString('es-CL')} CLP. Precio original: ${originalAmount.toLocaleString('es-CL')} CLP.`
+      ? `<p style="color: #10b981; font-weight: bold;">Descuento aplicado${promotionName ? ` (${promotionName})` : ''}: -${discountClp.toLocaleString('es-CL')} CLP. Precio original: ${originalAmount.toLocaleString('es-CL')} CLP.</p>`
       : '';
 
-    const html = this.interpolate(tpl.html, {
-      nombre: clientName || 'Cliente',
-      plan: planName,
-      monto: amount.toString(),
-      fecha_pago: paymentDate,
-      nueva_fecha_vencimiento: newExpiryStr,
-      descuento: discountText,
-    });
+    const subject = '✅ Confirmación de Pago - TYME Gym';
+    
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Confirmación de Pago</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 0;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 40px 30px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .content {
+      padding: 40px 30px;
+    }
+    .greeting {
+      font-size: 18px;
+      color: #1f2937;
+      margin-bottom: 24px;
+    }
+    .message {
+      font-size: 16px;
+      color: #4b5563;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+    .details-box {
+      background: #f9fafb;
+      border-left: 4px solid #10b981;
+      border-radius: 8px;
+      padding: 24px;
+      margin: 24px 0;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+    .detail-label {
+      font-weight: 600;
+      color: #6b7280;
+      font-size: 14px;
+      text-transform: uppercase;
+    }
+    .detail-value {
+      font-weight: 700;
+      color: #1f2937;
+      font-size: 16px;
+    }
+    .amount {
+      color: #10b981;
+      font-size: 24px;
+    }
+    .footer {
+      background: #f9fafb;
+      padding: 30px;
+      text-align: center;
+      color: #6b7280;
+      font-size: 14px;
+    }
+    .button {
+      display: inline-block;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 14px 32px;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      margin: 20px 0;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="icon">💰</div>
+      <h1>¡Pago Confirmado!</h1>
+    </div>
+    <div class="content">
+      <p class="greeting">Hola <strong>${clientName}</strong>,</p>
+      <p class="message">
+        Tu pago ha sido procesado exitosamente. A continuación encontrarás los detalles de tu transacción:
+      </p>
+      
+      <div class="details-box">
+        <div class="detail-row">
+          <span class="detail-label">Plan</span>
+          <span class="detail-value">${planName}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Monto</span>
+          <span class="detail-value amount">${amount.toLocaleString('es-CL')} CLP</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Fecha de Pago</span>
+          <span class="detail-value">${paymentDate}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Nueva Fecha de Vencimiento</span>
+          <span class="detail-value">${newExpiryStr}</span>
+        </div>
+      </div>
+
+      ${discountText}
+
+      <p class="message">
+        Gracias por tu confianza. Tu membresía está activa y lista para usar. ¡Nos vemos en el gimnasio! 💪
+      </p>
+    </div>
+    <div class="footer">
+      <p><strong>TYME Gym</strong></p>
+      <p>Tu salud, nuestra misión</p>
+      <p style="margin-top: 16px; font-size: 12px;">
+        Si tienes alguna pregunta sobre este pago, por favor contáctanos.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
 
     try {
-      const messageId = await this.mailer.send(toEmail, tpl.subject, html);
+      const messageId = await this.mailer.send(toEmail, subject, html);
       await this.logRepo.save(this.logRepo.create({
         gymId,
         toEmail,
-        subject: tpl.subject,
-        templateId: tpl.id,
+        subject,
+        templateId: null,
         status: EmailLogStatusEnum.SENT,
         providerMessageId: messageId,
         error: null,
@@ -779,8 +912,8 @@ export class CommunicationsService {
       await this.logRepo.save(this.logRepo.create({
         gymId,
         toEmail,
-        subject: tpl.subject,
-        templateId: tpl.id,
+        subject,
+        templateId: null,
         status: EmailLogStatusEnum.FAILED,
         providerMessageId: null,
         error: e?.message ?? String(e),

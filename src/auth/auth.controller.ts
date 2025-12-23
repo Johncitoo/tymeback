@@ -83,4 +83,18 @@ export class AuthController {
     const result = await this.auth.resetPassword(dto.token, dto.newPassword);
     return result;
   }
+
+  // ---------- Test Endpoints (solo para desarrollo) ----------
+  
+  @Post('test/send-password-reset')
+  async testSendPasswordReset(@Body() dto: {
+    gymId: string;
+    userId: string;
+    toEmail: string;
+    userName: string;
+    resetToken: string;
+  }) {
+    // Este endpoint es temporal para probar el correo
+    return { message: 'Usa /auth/forgot-password en producción' };
+  }
 }
