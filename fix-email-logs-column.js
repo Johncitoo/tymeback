@@ -1,4 +1,4 @@
-import pg from 'pg';
+const pg = require('pg');
 const { Client } = pg;
 
 const DATABASE_URL = 'postgresql://postgres:JqgOoQyCAzCBDuftAsvDPDMLMCDTlqZb@autorack.proxy.rlwy.net:28687/railway';

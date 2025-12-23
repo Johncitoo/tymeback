@@ -55,6 +55,8 @@ import { TestModule } from './test/test.module';
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_NAME || 'gym_db',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
+      migrationsRun: true, // Ejecutar migraciones automáticamente
       synchronize: false, // Desactivado - usamos bd.sql para el schema
       logging: process.env.DB_LOGGING === 'true',
       extra: {
