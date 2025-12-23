@@ -190,30 +190,40 @@ export class AutomatedEmailsService {
 
       try {
         const html = this.buildEmailHtml(subject, contentBody);
-        await this.mailerService.send(recipient.email, subject, html);
+        const result = await this.mailerService.send(recipient.email, subject, html);
 
-        await this.emailLogsRepo.save({
-          gymId: massEmail.gymId,
-          userId: recipient.id,
-          recipientEmail: recipient.email,
-          subject,
-          status: EmailLogStatusEnum.SENT,
-          sentAt: new Date(),
-        });
+        try {
+          await this.emailLogsRepo.save({
+            gymId: massEmail.gymId,
+            toEmail: recipient.email,
+            subject,
+            status: EmailLogStatusEnum.SENT,
+            providerMessageId: result?.messageId || null,
+            templateId: null,
+            error: null,
+          });
+        } catch (logError) {
+          console.error(`Error guardando log para ${recipient.email}:`, logError);
+        }
 
         sentCount++;
       } catch (error) {
         console.error(`Error enviando email a ${recipient.email}:`, error);
         failedCount++;
 
-        await this.emailLogsRepo.save({
-          gymId: massEmail.gymId,
-          userId: recipient.id,
-          recipientEmail: recipient.email,
-          subject,
-          status: EmailLogStatusEnum.FAILED,
-          sentAt: new Date(),
-        });
+        try {
+          await this.emailLogsRepo.save({
+            gymId: massEmail.gymId,
+            toEmail: recipient.email,
+            subject,
+            status: EmailLogStatusEnum.FAILED,
+            providerMessageId: null,
+            templateId: null,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        } catch (logError) {
+          console.error(`Error guardando log de fallo para ${recipient.email}:`, logError);
+        }
       }
     }
 
