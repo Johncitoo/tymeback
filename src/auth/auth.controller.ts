@@ -69,4 +69,18 @@ export class AuthController {
     const result = await this.auth.activateAccount(dto.token, dto.newPassword);
     return result;
   }
+
+  // ---------- Recuperación de Contraseña ----------
+  
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: { email: string }) {
+    await this.auth.forgotPassword(dto.email);
+    return { message: 'Si el correo existe, recibirás un enlace de recuperación' };
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() dto: { token: string; newPassword: string }) {
+    const result = await this.auth.resetPassword(dto.token, dto.newPassword);
+    return result;
+  }
 }

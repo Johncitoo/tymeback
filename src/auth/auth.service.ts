@@ -271,6 +271,95 @@ export class AuthService {
   }
 
   /**
+   * Envía correo de recuperación de contraseña
+   */
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.usersRepo.findOne({ where: { email: email.toLowerCase().trim() } });
+    
+    // Por seguridad, no revelamos si el email existe
+    if (!user) {
+      console.log(`Forgot password request for non-existent email: ${email}`);
+      return;
+    }
+
+    // Generar token de recuperación
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1); // 1 hora de validez
+
+    // Guardar token
+    const authToken = this.tokensRepo.create({
+      userId: user.id,
+      token,
+      type: TokenTypeEnum.PASSWORD_RESET,
+      expiresAt,
+      isUsed: false,
+    });
+    await this.tokensRepo.save(authToken);
+
+    // Obtener el gymId del usuario (primer gym al que pertenece)
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId: user.id },
+    });
+
+    if (!gymUser) {
+      console.log(`User ${user.id} has no gym membership, skipping email`);
+      return;
+    }
+
+    // Enviar correo de recuperación
+    try {
+      await this.communicationsService.sendPasswordResetEmail(
+        gymUser.gymId,
+        user.id,
+        user.email!,
+        user.fullName,
+        token
+      );
+      console.log(`✅ Password reset email sent to ${user.email}`);
+    } catch (error) {
+      console.error(`❌ Error sending password reset email:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restablece la contraseña con un token válido
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const authToken = await this.tokensRepo.findOne({
+      where: { token, type: TokenTypeEnum.PASSWORD_RESET },
+    });
+
+    if (!authToken) {
+      return { success: false, message: 'Token inválido' };
+    }
+
+    if (authToken.isUsed) {
+      return { success: false, message: 'Este enlace ya fue utilizado' };
+    }
+
+    if (new Date() > authToken.expiresAt) {
+      return { success: false, message: 'Este enlace ha expirado' };
+    }
+
+    // Actualizar contraseña
+    const hashedPassword = this.hashPassword(newPassword);
+    await this.usersRepo.update(
+      { id: authToken.userId },
+      { hashedPassword }
+    );
+
+    // Marcar token como usado
+    authToken.isUsed = true;
+    authToken.usedAt = new Date();
+    await this.tokensRepo.save(authToken);
+
+    console.log(`✅ Password reset successful for user ${authToken.userId}`);
+    return { success: true, message: 'Contraseña actualizada exitosamente' };
+  }
+
+  /**
    * Verifica si un token de activación es válido
    */
   async verifyActivationToken(token: string): Promise<{ valid: boolean; userId?: string; email?: string; fullName?: string }> {

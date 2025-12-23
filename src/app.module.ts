@@ -33,6 +33,7 @@ import { OpsModule } from './ops/ops.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AuthModule } from './auth/auth.module';
 import { AuthSecurityModule } from './auth-security/auth-security.module';
+import { TestModule } from './test/test.module';
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { AuthSecurityModule } from './auth-security/auth-security.module';
     NutritionModule,
     OpsModule,
     AppointmentsModule,
+    TestModule,
   ],
   controllers: [AppController],
   providers: [AppService],

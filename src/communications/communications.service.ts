@@ -563,6 +563,165 @@ export class CommunicationsService {
     }
   }
 
+  // ---------- Email de Recuperación de Contraseña ----------
+  async sendPasswordResetEmail(
+    gymId: string,
+    userId: string,
+    toEmail: string,
+    userName: string,
+    resetToken: string,
+  ) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
+
+    const subject = 'Recuperación de Contraseña - TYME Gym';
+    
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      background: #f9f9f9;
+      padding: 30px;
+      border-radius: 10px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #dc2626;
+      margin: 0;
+    }
+    .content {
+      background: white;
+      padding: 25px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .button {
+      display: inline-block;
+      padding: 15px 30px;
+      background: #dc2626;
+      color: white !important;
+      text-decoration: none;
+      border-radius: 5px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+    .button:hover {
+      background: #b91c1c;
+    }
+    .footer {
+      text-align: center;
+      color: #666;
+      font-size: 12px;
+      margin-top: 20px;
+    }
+    .warning {
+      background: #fef2f2;
+      border-left: 4px solid #dc2626;
+      padding: 12px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    .security-notice {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 12px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔒 TYME Gym</h1>
+    </div>
+    
+    <div class="content">
+      <h2>Recuperación de Contraseña</h2>
+      
+      <p>Hola <strong>${userName}</strong>,</p>
+      
+      <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.</p>
+      
+      <p><strong>Haz clic en el siguiente botón para crear una nueva contraseña:</strong></p>
+      
+      <div style="text-align: center;">
+        <a href="${resetLink}" class="button">Restablecer Mi Contraseña</a>
+      </div>
+      
+      <p>O copia y pega este enlace en tu navegador:</p>
+      <p style="word-break: break-all; color: #dc2626;">${resetLink}</p>
+      
+      <div class="warning">
+        <strong>⏱️ Importante:</strong>
+        <ul style="margin: 5px 0;">
+          <li>Este enlace es válido por <strong>1 hora</strong></li>
+          <li>Solo puedes usarlo una vez</li>
+          <li>Después expirará por seguridad</li>
+        </ul>
+      </div>
+      
+      <div class="security-notice">
+        <strong>🛡️ Seguridad:</strong>
+        <p style="margin: 5px 0;">Si NO solicitaste este cambio de contraseña, por favor <strong>ignora este correo</strong>. Tu cuenta permanecerá segura y nadie podrá cambiar tu contraseña sin este enlace.</p>
+      </div>
+      
+      <p>Saludos,<br><strong>El equipo de TYME Gym</strong></p>
+    </div>
+    
+    <div class="footer">
+      <p>Este correo fue enviado porque alguien solicitó restablecer la contraseña de esta cuenta.</p>
+      <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    try {
+      const messageId = await this.mailer.send(toEmail, subject, html);
+      await this.logRepo.save(this.logRepo.create({
+        gymId,
+        toEmail,
+        subject,
+        templateId: null,
+        status: EmailLogStatusEnum.SENT,
+        providerMessageId: messageId,
+        error: null,
+      }));
+      
+      console.log(`✅ Password reset email sent to ${toEmail}`);
+    } catch (e: any) {
+      await this.logRepo.save(this.logRepo.create({
+        gymId,
+        toEmail,
+        subject,
+        templateId: null,
+        status: EmailLogStatusEnum.FAILED,
+        providerMessageId: null,
+        error: e?.message ?? String(e),
+      }));
+      
+      console.error(`❌ Failed to send password reset email to ${toEmail}:`, e);
+      throw e;
+    }
+  }
+
   // ---------- Email de Confirmación de Pago ----------
   async sendPaymentConfirmation(
     gymId: string,
