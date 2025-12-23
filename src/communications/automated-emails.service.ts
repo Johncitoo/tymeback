@@ -190,7 +190,7 @@ export class AutomatedEmailsService {
 
       try {
         const html = this.buildEmailHtml(subject, contentBody);
-        const result = await this.mailerService.send(recipient.email, subject, html);
+        const messageId = await this.mailerService.send(recipient.email, subject, html);
 
         try {
           await this.emailLogsRepo.save({
@@ -198,7 +198,7 @@ export class AutomatedEmailsService {
             toEmail: recipient.email,
             subject,
             status: EmailLogStatusEnum.SENT,
-            providerMessageId: result?.messageId || null,
+            providerMessageId: messageId || null,
             templateId: null,
             error: null,
           });
