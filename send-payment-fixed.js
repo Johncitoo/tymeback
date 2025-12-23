@@ -7,7 +7,7 @@ async function sendPaymentEmail() {
 
   try {
     // Llamar al endpoint de test en auth controller
-    const response = await fetch(`${backendUrl}/auth/test/send-payment-confirmation`, {
+    const response = await fetch(`${backendUrl}/api/auth/test/send-payment-confirmation`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -899,25 +899,35 @@ export class CommunicationsService {
 
     try {
       const messageId = await this.mailer.send(toEmail, subject, html);
-      await this.logRepo.save(this.logRepo.create({
-        gymId,
-        toEmail,
-        subject,
-        templateId: null,
-        status: EmailLogStatusEnum.SENT,
-        providerMessageId: messageId,
-        error: null,
-      }));
+      // Log exitoso (opcional, puede fallar si gymId no existe)
+      try {
+        await this.logRepo.save(this.logRepo.create({
+          gymId,
+          toEmail,
+          subject,
+          templateId: null,
+          status: EmailLogStatusEnum.SENT,
+          providerMessageId: messageId,
+          error: null,
+        }));
+      } catch (logError) {
+        console.log('Error guardando log de correo, pero el correo fue enviado:', logError);
+      }
     } catch (e: any) {
-      await this.logRepo.save(this.logRepo.create({
-        gymId,
-        toEmail,
-        subject,
-        templateId: null,
-        status: EmailLogStatusEnum.FAILED,
-        providerMessageId: null,
-        error: e?.message ?? String(e),
-      }));
+      // Intentar guardar log de fallo
+      try {
+        await this.logRepo.save(this.logRepo.create({
+          gymId,
+          toEmail,
+          subject,
+          templateId: null,
+          status: EmailLogStatusEnum.FAILED,
+          providerMessageId: null,
+          error: e?.message ?? String(e),
+        }));
+      } catch (logError) {
+        console.log('Error guardando log de fallo:', logError);
+      }
       throw e;
     }
   }
