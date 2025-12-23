@@ -46,13 +46,13 @@ async function bootstrap() {
 
     // Crear gimnasio TYME
     console.log('🏋️ Creando gimnasio TYME...');
-    let gym: Gym = gymsRepo.create({
+    const gymEntity = gymsRepo.create({
       name: 'TYME',
       slug: 'tyme',
       email: 'nbarreraprado@gmail.com',
       isActive: true,
-    } as any);
-    gym = await gymsRepo.save(gym);
+    } as any) as unknown as Gym;
+    const gym = await gymsRepo.save(gymEntity);
     console.log('✅ Gym creado:', gym.id);
 
     // Crear usuarios solicitados
@@ -78,7 +78,7 @@ async function bootstrap() {
         lastName: u.fullName.split(' ').slice(1).join(' ') || '',
         isActive: true,
       } as any);
-      const saved: User = await usersRepo.save(user);
+      const saved = (await usersRepo.save(user)) as unknown as User;
       // membership gym_user
       const gu = gymUsersRepo.create({ gymId: gym.id, userId: saved.id, role: u.role, isActive: true } as any);
       await gymUsersRepo.save(gu);
@@ -95,7 +95,7 @@ async function bootstrap() {
         lastName: a.fullName.split(' ').slice(1).join(' ') || '',
         isActive: true,
       } as any);
-      const saved: User = await usersRepo.save(user);
+      const saved = (await usersRepo.save(user)) as unknown as User;
       const gu = gymUsersRepo.create({ gymId: gym.id, userId: saved.id, role: a.role, isActive: true } as any);
       await gymUsersRepo.save(gu);
       createdUsers.push({ email: a.email, password: pwd });
