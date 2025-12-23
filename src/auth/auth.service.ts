@@ -195,9 +195,8 @@ export class AuthService {
 
       // Obtener datos del cliente (tabla clients)
       const clientData = await this.dataSource.query(
-        `SELECT c.*, p.name as plan_name, p.id as plan_id
+        `SELECT c.*
          FROM clients c
-         LEFT JOIN plans p ON c.plan_id = p.id
          WHERE c.user_id = $1 AND c.gym_id = $2 AND c.deleted_at IS NULL
          LIMIT 1`,
         [userId, gymId]
