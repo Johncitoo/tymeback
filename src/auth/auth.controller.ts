@@ -1,16 +1,19 @@
-import { Body, Controller, Get, Post, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, UseGuards, Inject, forwardRef } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import type { JwtUser } from './current-user.decorator';
 import { CommunicationsService } from '../communications/communications.service';
+import { ClientsService } from '../clients/clients.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly communications: CommunicationsService,
+    @Inject(forwardRef(() => ClientsService))
+    private readonly clientsService: ClientsService,
   ) {}
 
   @Post('login')
@@ -22,11 +25,35 @@ export class AuthController {
     
     // Obtener membershipStatus si es cliente
     let membershipStatus: 'NONE' | 'ACTIVE' | 'EXPIRED' | undefined = undefined;
+    let clientData: any = null;
+    
     if (role === 'CLIENT') {
       membershipStatus = await this.auth.getMembershipStatus(user.id, gymId);
+      
+      // Obtener datos completos del cliente
+      try {
+        clientData = await this.clientsService.findOne(user.id, gymId);
+      } catch (error) {
+        console.error('Error obteniendo datos del cliente:', error);
+      }
     }
     
     const accessToken = this.auth.signToken(user, gymId, role as any);
+    
+    // Si es cliente y tenemos sus datos, devolver todo
+    if (role === 'CLIENT' && clientData) {
+      return {
+        access_token: accessToken,
+        user: {
+          ...clientData,
+          role: 'CLIENT',
+          gymId,
+          membershipStatus,
+        },
+      };
+    }
+    
+    // Para otros roles, devolver solo datos básicos
     return {
       access_token: accessToken,
       user: {
