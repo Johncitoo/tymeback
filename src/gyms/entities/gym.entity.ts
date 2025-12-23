@@ -10,6 +10,8 @@ import {
 
 @Entity({ name: 'gyms' })
 export class Gym {
+    @Column({ type: 'text', nullable: true })
+    email!: string | null;
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
