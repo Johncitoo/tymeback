@@ -1318,9 +1318,10 @@ export class CommunicationsService {
   }
 
   async sendSupportRequest(gymId: string, reason: string, message: string, clientData: any, email?: string, gymSlug?: string) {
-    let gym: Gym;
+    let gym: Gym | null = null;
     if (gymId) {
       gym = await this.gymsRepo.findOne({ where: { id: gymId } });
+      if (!gym) throw new NotFoundException('Gimnasio no encontrado');
     } else if (gymSlug) {
       gym = await this.gymsRepo.findOne({ where: { slug: gymSlug, isActive: true } });
       if (!gym) throw new NotFoundException('Gimnasio no encontrado');
@@ -1329,9 +1330,15 @@ export class CommunicationsService {
     }
 
     const admins = await this.gymUsersRepo.find({ 
-      where: { gymId: gym.id, role: RoleEnum.ADMIN, isActive: true },
-      relations: ['user']
+      where: { gymId: gym.id, role: RoleEnum.ADMIN, isActive: true }
     });
+
+    // Cargar usuarios de los admins
+    const adminUserIds = admins.map(a => a.userId);
+    const users = await this.usersRepo.find({
+      where: { id: In(adminUserIds), isActive: true }
+    });
+    const userMap = new Map(users.map(u => [u.id, u]));
 
     const reasonTexts = {
       billing: 'Problema con facturación/pagos',
@@ -1358,8 +1365,9 @@ export class CommunicationsService {
     `;
 
     for (const admin of admins) {
-      if (admin.user?.email) {
-        await this.mailer.send(admin.user.email, subject, html);
+      const user = userMap.get(admin.userId);
+      if (user?.email) {
+        await this.mailer.send(user.email, subject, html);
       }
     }
 
