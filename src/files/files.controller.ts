@@ -1,9 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseInterceptors, UploadedFile, BadRequestException, UseGuards, ForbiddenException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { FilesService } from './files.service';
 import { CreateUploadDto } from './dto/create-upload.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { QueryFilesDto } from './dto/query-files.dto';
 import { GcsService } from './storage/gcs.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtUser } from '../auth/current-user.decorator';
 
 @Controller('files')
 export class FilesController {
@@ -40,39 +44,88 @@ export class FilesController {
     }
   }
 
-  // 1) Presign (PUT) para subir directo a GCS
+  // 1) Upload directo vía backend (más seguro)
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file', {
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB
+    },
+  }))
+  async uploadDirect(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('gymId') gymId: string,
+    @Body('purpose') purpose: string,
+    @Body('ownerUserId') ownerUserId?: string,
+    @Body('makePublic') makePublic?: string,
+  ) {
+    console.log('🔍 Upload endpoint hit:', {
+      hasFile: !!file,
+      fileDetails: file ? {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+      } : null,
+      gymId,
+      purpose,
+      ownerUserId,
+      makePublic,
+    });
+
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    
+    return this.files.uploadDirectToGCS({
+      gymId,
+      ownerUserId,
+      file,
+      purpose: purpose as any,
+      makePublic: makePublic === 'true',
+    });
+  }
+
+  // 2) Presign (PUT) para subir directo a GCS - DEPRECADO, usar /upload
   @Post('presign')
   presign(@Body() dto: CreateUploadDto) {
     return this.files.createPresignedUpload(dto);
   }
 
-  // 2) Completar subida (marca READY y opcionalmente hace público)
+  // 3) Completar subida (marca READY y opcionalmente hace público)
   @Post('complete')
   complete(@Body() dto: CompleteUploadDto) {
     return this.files.completeUpload(dto);
   }
 
-  // 3) Listar
+  // 4) Listar
   @Get()
   list(@Query() q: QueryFilesDto) {
     return this.files.findAll(q);
   }
 
-  // 4) Detalle
+  // 5) Detalle
   @Get(':id')
   getOne(@Param('id') id: string) {
     return this.files.findOne(id);
   }
 
-  // 5) Soft delete (status=DELETED)
+  // 6) Soft delete (status=DELETED)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.files.softDelete(id);
   }
 
-  // 6) (Opcional) URL de descarga temporal firmada
+  // 7) URL de descarga temporal firmada (10 min) - requiere autenticación
   @Get(':id/download-url')
-  downloadUrl(@Param('id') id: string) {
+  @UseGuards(JwtAuthGuard)
+  async downloadUrl(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    // Validar que el usuario pertenezca al mismo gym del archivo
+    const file = await this.files.findOne(id);
+    if (file.gymId !== user.gymId) {
+      throw new ForbiddenException('No tienes permiso para acceder a este archivo');
+    }
     return this.files.getDownloadUrl(id);
   }
 }

@@ -4,9 +4,10 @@ import { BodyEvaluationsService } from './body-evaluations.service';
 import { BodyEvaluationsController } from './body-evaluations.controller';
 import { BodyEvaluation } from './entities/body-evaluation.entity';
 import { User } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([BodyEvaluation, User])],
+  imports: [TypeOrmModule.forFeature([BodyEvaluation, User, GymUser])],
   controllers: [BodyEvaluationsController],
   providers: [BodyEvaluationsService],
   exports: [TypeOrmModule, BodyEvaluationsService],

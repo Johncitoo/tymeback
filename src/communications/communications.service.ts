@@ -24,6 +24,8 @@ import { User, RoleEnum } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Plan } from '../plans/entities/plan.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
+import { Gym } from '../gyms/entities/gym.entity';
 
 @Injectable()
 export class CommunicationsService {
@@ -34,8 +36,10 @@ export class CommunicationsService {
     @InjectRepository(EmailLog) private readonly logRepo: Repository<EmailLog>,
     @InjectRepository(MembershipReminder) private readonly remRepo: Repository<MembershipReminder>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
     @InjectRepository(Membership) private readonly memRepo: Repository<Membership>,
     @InjectRepository(Plan) private readonly plansRepo: Repository<Plan>,
+    @InjectRepository(Gym) private readonly gymsRepo: Repository<Gym>,
     private readonly mailer: MailerService,
   ) {}
 
@@ -46,6 +50,11 @@ export class CommunicationsService {
 
   private todayISO(): string {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  private async getGymName(gymId: string): Promise<string> {
+    const gym = await this.gymsRepo.findOne({ where: { id: gymId } });
+    return gym?.name || 'TYME Gym';
   }
 
   // ---------- Templates ----------
@@ -90,7 +99,6 @@ export class CommunicationsService {
         toEmail: dto.to,
         subject: dto.subject,
         templateId: null,
-        campaignId: null,
         status: EmailLogStatusEnum.SENT,
         providerMessageId: messageId,
         error: null,
@@ -161,23 +169,32 @@ export class CommunicationsService {
     gymId: string,
     filters: any,
   ): Promise<Array<{ clientId: string | null; email: string }>> {
-    // Por simplicidad, sacamos emails desde users CLIENT
-    const whereUser: any = { gymId, role: RoleEnum.CLIENT, isActive: true };
-    const users = await this.usersRepo.find({ where: whereUser });
+    // Obtener usuarios con membresía CLIENT en este gimnasio via gym_users
+    const gymUsers = await this.gymUsersRepo.find({
+      where: { gymId, role: RoleEnum.CLIENT, isActive: true },
+      select: ['id', 'userId'],
+    });
+    const userIds = gymUsers.map(gu => gu.userId);
+    if (userIds.length === 0) return [];
+
+    const users = await this.usersRepo.find({ where: { id: In(userIds) } });
+    
+    // Crear mapa gymUserId -> userId
+    const gymUserMap = new Map(gymUsers.map(gu => [gu.userId, gu.id]));
 
     // Asegurar email:string (no null) con type guard
-    const candidates: Array<{ clientId: string; email: string }> = users
+    const candidates: Array<{ clientId: string; clientGymUserId: string; email: string }> = users
       .filter((u): u is User & { email: string } => !!u.email)
-      .map(u => ({ clientId: u.id, email: u.email }));
+      .map(u => ({ clientId: u.id, clientGymUserId: gymUserMap.get(u.id)!, email: u.email }));
 
     if (filters?.activeOnly) {
       const today = this.todayISO();
       const activeMems = await this.memRepo.find({
         where: { startsOn: LessThanOrEqual(today), endsOn: MoreThanOrEqual(today) },
-        select: ['clientId'],
+        select: ['clientGymUserId'],
       });
-      const activeSet = new Set(activeMems.map(m => m.clientId));
-      return candidates.filter(c => activeSet.has(c.clientId));
+      const activeSet = new Set(activeMems.map(m => m.clientGymUserId));
+      return candidates.filter(c => activeSet.has(c.clientGymUserId));
     }
 
     return candidates;
@@ -193,7 +210,6 @@ export class CommunicationsService {
     const recipients = await this.resolveRecipients(gymId, camp.filters ?? {});
     const rows: CampaignRecipient[] = recipients.map(r =>
       this.recRepo.create({
-        campaignId: camp.id,
         gymId,
         clientId: r.clientId,
         toEmail: r.email,
@@ -215,7 +231,6 @@ export class CommunicationsService {
           toEmail: rec.toEmail,
           subject: camp.subject,
           templateId: null,
-          campaignId: camp.id,
           status: EmailLogStatusEnum.SENT,
           providerMessageId: messageId,
           error: null,
@@ -229,7 +244,6 @@ export class CommunicationsService {
           toEmail: rec.toEmail,
           subject: camp.subject,
           templateId: null,
-          campaignId: camp.id,
           status: EmailLogStatusEnum.FAILED,
           providerMessageId: null,
           error: rec.error,
@@ -273,18 +287,18 @@ export class CommunicationsService {
         ));
         const targetISO = target.toISOString().slice(0, 10);
 
-        // Primero obtenemos los clientIds del gimnasio
-        const gymClients = await this.usersRepo.find({
+        // Primero obtenemos los clientIds del gimnasio via gym_users
+        const gymClients = await this.gymUsersRepo.find({
           where: { gymId, role: RoleEnum.CLIENT },
-          select: ['id'],
+          select: ['userId'],
         });
-        const clientIds = gymClients.map(u => u.id);
+        const clientIds = gymClients.map(gu => gu.userId);
         if (clientIds.length === 0) continue;
 
         // membresías que vencen ese día para clientes de este gimnasio
         const mems = await this.memRepo.find({
-          where: { endsOn: targetISO, clientId: In(clientIds) },
-          select: ['id', 'clientId', 'planId'],
+          where: { endsOn: targetISO, clientGymUserId: In(clientIds) },
+          select: ['id', 'clientGymUserId', 'planId'],
         });
         if (mems.length === 0) continue;
 
@@ -305,8 +319,14 @@ export class CommunicationsService {
         for (const m of mems) {
           if (sentSet.has(m.id)) continue;
 
+          // Validar que el usuario pertenece al gimnasio (clientGymUserId ya es el gym_user id)
+          const gymUser = await this.gymUsersRepo.findOne({
+            where: { id: m.clientGymUserId, gymId, role: RoleEnum.CLIENT },
+          });
+          if (!gymUser) continue;
+
           const user = await this.usersRepo.findOne({
-            where: { id: m.clientId, gymId, role: RoleEnum.CLIENT },
+            where: { id: gymUser.userId },
             select: ['id', 'fullName', 'email'],
           });
           if (!user?.email) continue;
@@ -326,7 +346,6 @@ export class CommunicationsService {
               toEmail: user.email,
               subject: tpl.subject,
               templateId: tpl.id,
-              campaignId: null,
               status: EmailLogStatusEnum.SENT,
               providerMessageId: messageId,
               error: null,
@@ -334,7 +353,7 @@ export class CommunicationsService {
             await this.remRepo.save(this.remRepo.create({
               gymId,
               membershipId: m.id,
-              clientId: m.clientId,
+              clientId: m.clientGymUserId,
               daysBefore: d,
               sentAt: new Date(),
             }));
@@ -344,7 +363,6 @@ export class CommunicationsService {
               toEmail: user.email,
               subject: tpl.subject,
               templateId: tpl.id,
-              campaignId: null,
               status: EmailLogStatusEnum.FAILED,
               providerMessageId: null,
               error: e?.message ?? String(e),
@@ -378,7 +396,6 @@ export class CommunicationsService {
         toEmail,
         subject: tpl.subject,
         templateId: tpl.id,
-        campaignId: null,
         status: EmailLogStatusEnum.SENT,
         providerMessageId: messageId,
         error: null,
@@ -389,7 +406,6 @@ export class CommunicationsService {
         toEmail,
         subject: tpl.subject,
         templateId: tpl.id,
-        campaignId: null,
         status: EmailLogStatusEnum.FAILED,
         providerMessageId: null,
         error: e?.message ?? String(e),
@@ -406,10 +422,11 @@ export class CommunicationsService {
     userName: string,
     activationToken: string
   ) {
+    const gymName = await this.getGymName(gymId);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const activationLink = `${frontendUrl}/activate/${activationToken}`;
 
-    const subject = '¡Bienvenido a TYME Gym! Activa tu cuenta';
+    const subject = `¡Bienvenido a ${gymName}! Activa tu cuenta`;
     
     const html = `
 <!DOCTYPE html>
@@ -476,7 +493,7 @@ export class CommunicationsService {
 <body>
   <div class="container">
     <div class="header">
-      <h1>🏋️ TYME Gym</h1>
+      <h1>🏋️ ${gymName}</h1>
     </div>
     
     <div class="content">
@@ -513,7 +530,7 @@ export class CommunicationsService {
       
       <p>¡Nos emociona tenerte en nuestra comunidad!</p>
       
-      <p>Saludos,<br><strong>El equipo de TYME Gym</strong></p>
+      <p>Saludos,<br><strong>El equipo de ${gymName}</strong></p>
     </div>
     
     <div class="footer">
@@ -532,7 +549,6 @@ export class CommunicationsService {
         toEmail,
         subject,
         templateId: null,
-        campaignId: null,
         status: EmailLogStatusEnum.SENT,
         providerMessageId: messageId,
         error: null,
@@ -545,13 +561,172 @@ export class CommunicationsService {
         toEmail,
         subject,
         templateId: null,
-        campaignId: null,
         status: EmailLogStatusEnum.FAILED,
         providerMessageId: null,
         error: e?.message ?? String(e),
       }));
       
       console.error(`❌ Failed to send activation email to ${toEmail}:`, e);
+      throw e;
+    }
+  }
+
+  // ---------- Email de Recuperación de Contraseña ----------
+  async sendPasswordResetEmail(
+    gymId: string,
+    userId: string,
+    toEmail: string,
+    userName: string,
+    resetToken: string,
+  ) {
+    const gymName = await this.getGymName(gymId);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
+
+    const subject = `Recuperación de Contraseña - ${gymName}`;
+    
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      background: #f9f9f9;
+      padding: 30px;
+      border-radius: 10px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #dc2626;
+      margin: 0;
+    }
+    .content {
+      background: white;
+      padding: 25px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .button {
+      display: inline-block;
+      padding: 15px 30px;
+      background: #dc2626;
+      color: white !important;
+      text-decoration: none;
+      border-radius: 5px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+    .button:hover {
+      background: #b91c1c;
+    }
+    .footer {
+      text-align: center;
+      color: #666;
+      font-size: 12px;
+      margin-top: 20px;
+    }
+    .warning {
+      background: #fef2f2;
+      border-left: 4px solid #dc2626;
+      padding: 12px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    .security-notice {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 12px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔒 ${gymName}</h1>
+    </div>
+    
+    <div class="content">
+      <h2>Recuperación de Contraseña</h2>
+      
+      <p>Hola <strong>${userName}</strong>,</p>
+      
+      <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.</p>
+      
+      <p><strong>Haz clic en el siguiente botón para crear una nueva contraseña:</strong></p>
+      
+      <div style="text-align: center;">
+        <a href="${resetLink}" class="button">Restablecer Mi Contraseña</a>
+      </div>
+      
+      <p>O copia y pega este enlace en tu navegador:</p>
+      <p style="word-break: break-all; color: #dc2626;">${resetLink}</p>
+      
+      <div class="warning">
+        <strong>⏱️ Importante:</strong>
+        <ul style="margin: 5px 0;">
+          <li>Este enlace es válido por <strong>1 hora</strong></li>
+          <li>Solo puedes usarlo una vez</li>
+          <li>Después expirará por seguridad</li>
+        </ul>
+      </div>
+      
+      <div class="security-notice">
+        <strong>🛡️ Seguridad:</strong>
+        <p style="margin: 5px 0;">Si NO solicitaste este cambio de contraseña, por favor <strong>ignora este correo</strong>. Tu cuenta permanecerá segura y nadie podrá cambiar tu contraseña sin este enlace.</p>
+      </div>
+      
+      <p>Saludos,<br><strong>El equipo de ${gymName}</strong></p>
+    </div>
+    
+    <div class="footer">
+      <p>Este correo fue enviado porque alguien solicitó restablecer la contraseña de esta cuenta.</p>
+      <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    try {
+      const messageId = await this.mailer.send(toEmail, subject, html);
+      await this.logRepo.save(this.logRepo.create({
+        gymId,
+        toEmail,
+        subject,
+        templateId: null,
+        status: EmailLogStatusEnum.SENT,
+        providerMessageId: messageId,
+        error: null,
+      }));
+      
+      console.log(`✅ Password reset email sent to ${toEmail}`);
+    } catch (e: any) {
+      await this.logRepo.save(this.logRepo.create({
+        gymId,
+        toEmail,
+        subject,
+        templateId: null,
+        status: EmailLogStatusEnum.FAILED,
+        providerMessageId: null,
+        error: e?.message ?? String(e),
+      }));
+      
+      console.error(`❌ Failed to send password reset email to ${toEmail}:`, e);
       throw e;
     }
   }
@@ -565,54 +740,499 @@ export class CommunicationsService {
     planName: string,
     amount: number,
     paymentDate: string,
+    discountClp?: number,
+    promotionName?: string,
   ) {
-    const tpl = await this.tplRepo.findOne({
-      where: { gymId, isActive: true },
-      order: { createdAt: 'DESC' },
-    });
-
-    if (!tpl) {
-      console.log(`No payment confirmation template found for gym ${gymId}`);
-      return; // No hay plantilla activa
-    }
-
     // Calcular fecha de vencimiento (30 días desde hoy, ejemplo)
     const today = new Date();
     const newExpiry = new Date(today);
     newExpiry.setDate(newExpiry.getDate() + 30);
     const newExpiryStr = newExpiry.toISOString().slice(0, 10);
 
-    const html = this.interpolate(tpl.html, {
-      nombre: clientName || 'Cliente',
-      plan: planName,
-      monto: amount.toString(),
-      fecha_pago: paymentDate,
-      nueva_fecha_vencimiento: newExpiryStr,
-    });
+    const originalAmount = discountClp ? amount + discountClp : amount;
+    const discountText = discountClp
+      ? `<p style="color: #10b981; font-weight: bold;">Descuento aplicado${promotionName ? ` (${promotionName})` : ''}: -${discountClp.toLocaleString('es-CL')} CLP. Precio original: ${originalAmount.toLocaleString('es-CL')} CLP.</p>`
+      : '';
+
+    const gymName = await this.getGymName(gymId);
+    const subject = `✅ Confirmación de Pago - ${gymName}`;
+    
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Confirmación de Pago</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 0;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 40px 30px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .content {
+      padding: 40px 30px;
+    }
+    .greeting {
+      font-size: 18px;
+      color: #1f2937;
+      margin-bottom: 24px;
+    }
+    .message {
+      font-size: 16px;
+      color: #4b5563;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+    .details-box {
+      background: #f9fafb;
+      border-left: 4px solid #10b981;
+      border-radius: 8px;
+      padding: 24px;
+      margin: 24px 0;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+    .detail-label {
+      font-weight: 600;
+      color: #6b7280;
+      font-size: 14px;
+      text-transform: uppercase;
+    }
+    .detail-value {
+      font-weight: 700;
+      color: #1f2937;
+      font-size: 16px;
+    }
+    .amount {
+      color: #10b981;
+      font-size: 24px;
+    }
+    .footer {
+      background: #f9fafb;
+      padding: 30px;
+      text-align: center;
+      color: #6b7280;
+      font-size: 14px;
+    }
+    .button {
+      display: inline-block;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 14px 32px;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      margin: 20px 0;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="icon">💰</div>
+      <h1>¡Pago Confirmado!</h1>
+    </div>
+    <div class="content">
+      <p class="greeting">Hola <strong>${clientName}</strong>,</p>
+      <p class="message">
+        Tu pago ha sido procesado exitosamente. A continuación encontrarás los detalles de tu transacción:
+      </p>
+      
+      <div class="details-box">
+        <div class="detail-row">
+          <span class="detail-label">Plan</span>
+          <span class="detail-value">${planName}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Monto</span>
+          <span class="detail-value amount">${amount.toLocaleString('es-CL')} CLP</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Fecha de Pago</span>
+          <span class="detail-value">${paymentDate}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Nueva Fecha de Vencimiento</span>
+          <span class="detail-value">${newExpiryStr}</span>
+        </div>
+      </div>
+
+      ${discountText}
+
+      <p class="message">
+        Gracias por tu confianza. Tu membresía está activa y lista para usar. ¡Nos vemos en el gimnasio! 💪
+      </p>
+    </div>
+    <div class="footer">
+      <p><strong>${gymName}</strong></p>
+      <p>Tu salud, nuestra misión</p>
+      <p style="margin-top: 16px; font-size: 12px;">
+        Si tienes alguna pregunta sobre este pago, por favor contáctanos.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
 
     try {
-      const messageId = await this.mailer.send(toEmail, tpl.subject, html);
-      await this.logRepo.save(this.logRepo.create({
-        gymId,
-        toEmail,
-        subject: tpl.subject,
-        templateId: tpl.id,
-        campaignId: null,
-        status: EmailLogStatusEnum.SENT,
-        providerMessageId: messageId,
-        error: null,
-      }));
+      const messageId = await this.mailer.send(toEmail, subject, html);
+      // Log exitoso (opcional, puede fallar si gymId no existe)
+      try {
+        await this.logRepo.save(this.logRepo.create({
+          gymId,
+          toEmail,
+          subject,
+          templateId: null,
+          status: EmailLogStatusEnum.SENT,
+          providerMessageId: messageId,
+          error: null,
+        }));
+      } catch (logError) {
+        console.log('Error guardando log de correo, pero el correo fue enviado:', logError);
+      }
     } catch (e: any) {
-      await this.logRepo.save(this.logRepo.create({
-        gymId,
-        toEmail,
-        subject: tpl.subject,
-        templateId: tpl.id,
-        campaignId: null,
-        status: EmailLogStatusEnum.FAILED,
-        providerMessageId: null,
-        error: e?.message ?? String(e),
-      }));
+      // Intentar guardar log de fallo
+      try {
+        await this.logRepo.save(this.logRepo.create({
+          gymId,
+          toEmail,
+          subject,
+          templateId: null,
+          status: EmailLogStatusEnum.FAILED,
+          providerMessageId: null,
+          error: e?.message ?? String(e),
+        }));
+      } catch (logError) {
+        console.log('Error guardando log de fallo:', logError);
+      }
+      throw e;
+    }
+  }
+
+  async sendExpirationReminder(
+    gymId: string,
+    userId: string,
+    userEmail: string,
+    userName: string,
+    planName: string,
+    expiryDate: string,
+    daysUntilExpiry: number,
+  ): Promise<void> {
+    const urgencyColor = daysUntilExpiry === 1 ? '#dc2626' : daysUntilExpiry === 3 ? '#f59e0b' : '#3b82f6';
+    const urgencyText = daysUntilExpiry === 1 ? '¡MAÑANA!' : daysUntilExpiry === 3 ? 'en 3 días' : 'en 7 días';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Recordatorio de Vencimiento de Membresía</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: ${urgencyColor}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 28px;">⏰ Tu Membresía Vence ${urgencyText}</h1>
+        </div>
+        
+        <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb;">
+          <p style="font-size: 18px; margin-bottom: 20px;">Hola <strong>${userName}</strong>,</p>
+          
+          <p>Te recordamos que tu membresía <strong>${planName}</strong> está próxima a vencer.</p>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${urgencyColor};">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; font-weight: 600;">Plan:</td>
+                <td style="padding: 8px 0;">${planName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 600;">Fecha de vencimiento:</td>
+                <td style="padding: 8px 0; font-size: 18px; color: ${urgencyColor}; font-weight: 700;">${expiryDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 600;">Días restantes:</td>
+                <td style="padding: 8px 0;"><strong>${daysUntilExpiry} día${daysUntilExpiry !== 1 ? 's' : ''}</strong></td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0; color: #92400e;">
+              <strong>⚠️ Importante:</strong><br/>
+              Para continuar disfrutando de nuestros servicios, recuerda renovar tu membresía antes del vencimiento.
+            </p>
+          </div>
+          
+          <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
+            Si ya realizaste tu pago, por favor ignora este mensaje.
+          </p>
+          
+          <p style="margin-top: 20px;">
+            ¡Te esperamos!<br/>
+            <strong>Equipo del Gimnasio</strong>
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #9ca3af;">
+          <p>Este es un mensaje automático, por favor no respondas a este correo.</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.mailer.send(
+      userEmail,
+      `⏰ Tu membresía vence ${urgencyText} - ${planName}`,
+      html
+    );
+
+    await this.logRepo.save({
+      gymId,
+      userId,
+      recipientEmail: userEmail,
+      subject: `Recordatorio de vencimiento - ${planName}`,
+      status: EmailLogStatusEnum.SENT,
+      sentAt: new Date(),
+    });
+  }
+
+  // ---------- Email de Membresía Expirada ----------
+  async sendMembershipExpiredEmail(
+    gymId: string,
+    userId: string,
+    userEmail: string,
+    userName: string,
+    planName: string,
+    expiryDate: string,
+  ): Promise<void> {
+    const gymName = await this.getGymName(gymId);
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Membresía Expirada - Renueva Ahora</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            margin: 0;
+            padding: 40px 20px;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+          }
+          .header {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+          }
+          .icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+          }
+          .content {
+            padding: 40px 30px;
+          }
+          .alert-box {
+            background: #fee2e2;
+            border-left: 4px solid #dc2626;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 24px 0;
+          }
+          .alert-box p {
+            margin: 0;
+            color: #991b1b;
+            font-weight: 600;
+            font-size: 16px;
+          }
+          .details-box {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 24px 0;
+          }
+          .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #e5e7eb;
+          }
+          .detail-row:last-child {
+            border-bottom: none;
+          }
+          .detail-label {
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 14px;
+            text-transform: uppercase;
+          }
+          .detail-value {
+            font-weight: 700;
+            color: #1f2937;
+            font-size: 16px;
+          }
+          .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            padding: 16px 40px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 18px;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+            text-align: center;
+          }
+          .footer {
+            background: #f9fafb;
+            padding: 30px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="icon">🚫</div>
+            <h1>Tu Membresía ha Expirado</h1>
+          </div>
+          <div class="content">
+            <p style="font-size: 18px; color: #1f2937; margin-bottom: 24px;">
+              Hola <strong>${userName}</strong>,
+            </p>
+            
+            <div class="alert-box">
+              <p>
+                ⚠️ Tu membresía expiró el <strong>${expiryDate}</strong>.<br/>
+                Para continuar usando nuestras instalaciones, es necesario que renueves tu plan.
+              </p>
+            </div>
+
+            <div class="details-box">
+              <div class="detail-row">
+                <span class="detail-label">Plan Anterior</span>
+                <span class="detail-value">${planName}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Fecha de Vencimiento</span>
+                <span class="detail-value" style="color: #dc2626;">${expiryDate}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Estado</span>
+                <span class="detail-value" style="color: #dc2626;">❌ EXPIRADA</span>
+              </div>
+            </div>
+
+            <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 24px 0;">
+              No queremos que dejes de entrenar. Acércate a nuestro gimnasio para renovar tu membresía 
+              y continuar con tus objetivos de salud y bienestar.
+            </p>
+
+            <div style="text-align: center; margin: 32px 0;">
+              <div class="cta-button">
+                💪 Renovar Membresía
+              </div>
+            </div>
+
+            <p style="font-size: 14px; color: #6b7280; margin-top: 32px;">
+              Si ya realizaste tu renovación, por favor ignora este mensaje. Tu acceso será habilitado una vez 
+              procesemos tu pago.
+            </p>
+          </div>
+          <div class="footer">
+            <p><strong>${gymName}</strong></p>
+            <p>¡Te extrañamos! Vuelve pronto 💙</p>
+            <p style="margin-top: 16px; font-size: 12px;">
+              Para más información, visita nuestro gimnasio o contáctanos.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    try {
+      const messageId = await this.mailer.send(
+        userEmail,
+        `🚫 Tu Membresía ha Expirado - ${planName}`,
+        html
+      );
+      
+      try {
+        await this.logRepo.save(this.logRepo.create({
+          gymId,
+          toEmail: userEmail,
+          subject: `Membresía expirada - ${planName}`,
+          templateId: null,
+          status: EmailLogStatusEnum.SENT,
+          providerMessageId: messageId,
+          error: null,
+        }));
+      } catch (logError) {
+        console.log('Error guardando log de correo expirado:', logError);
+      }
+    } catch (e: any) {
+      try {
+        await this.logRepo.save(this.logRepo.create({
+          gymId,
+          toEmail: userEmail,
+          subject: `Membresía expirada - ${planName}`,
+          templateId: null,
+          status: EmailLogStatusEnum.FAILED,
+          providerMessageId: null,
+          error: e?.message ?? String(e),
+        }));
+      } catch (logError) {
+        console.log('Error guardando log de fallo:', logError);
+      }
       throw e;
     }
   }
@@ -688,5 +1308,69 @@ export class CommunicationsService {
       throw new NotFoundException(`Email log ${id} not found`);
     }
     return log;
+  }
+
+  async getClientInfo(clientId: string, gymId: string) {
+    const user = await this.usersRepo.findOne({ where: { id: clientId } });
+    if (!user) return null;
+    const gymUser = await this.gymUsersRepo.findOne({ where: { userId: clientId, gymId } });
+    return { ...user, gymUser };
+  }
+
+  async sendSupportRequest(gymId: string, reason: string, message: string, clientData: any, email?: string, gymSlug?: string) {
+    let gym: Gym | null = null;
+    if (gymId) {
+      gym = await this.gymsRepo.findOne({ where: { id: gymId } });
+      if (!gym) throw new NotFoundException('Gimnasio no encontrado');
+    } else if (gymSlug) {
+      gym = await this.gymsRepo.findOne({ where: { slug: gymSlug, isActive: true } });
+      if (!gym) throw new NotFoundException('Gimnasio no encontrado');
+    } else {
+      throw new Error('gymId o gymSlug requerido');
+    }
+
+    const admins = await this.gymUsersRepo.find({ 
+      where: { gymId: gym.id, role: RoleEnum.ADMIN, isActive: true }
+    });
+
+    // Cargar usuarios de los admins
+    const adminUserIds = admins.map(a => a.userId);
+    const users = await this.usersRepo.find({
+      where: { id: In(adminUserIds), isActive: true }
+    });
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const reasonTexts = {
+      billing: 'Problema con facturación/pagos',
+      membership: 'Consulta sobre membresía',
+      schedule: 'Horarios y disponibilidad',
+      trainer: 'Consulta sobre entrenador',
+      equipment: 'Problema con equipamiento',
+      bug: 'Error en el sistema',
+      other: 'Otro'
+    };
+
+    const subject = `Solicitud de Ayuda: ${reasonTexts[reason] || reason}`;
+    const html = `
+      <h2>Nueva Solicitud de Ayuda</h2>
+      <p><strong>Gimnasio:</strong> ${gym.name}</p>
+      ${clientData ? `
+        <p><strong>Cliente:</strong> ${clientData.fullName || clientData.email}</p>
+        <p><strong>Email:</strong> ${clientData.email}</p>
+        <p><strong>Teléfono:</strong> ${clientData.phone || 'No disponible'}</p>
+      ` : `<p><strong>Email de contacto:</strong> ${email}</p>`}
+      <p><strong>Motivo:</strong> ${reasonTexts[reason] || reason}</p>
+      <p><strong>Mensaje:</strong></p>
+      <p>${message}</p>
+    `;
+
+    for (const admin of admins) {
+      const user = userMap.get(admin.userId);
+      if (user?.email) {
+        await this.mailer.send(user.email, subject, html);
+      }
+    }
+
+    return { success: true };
   }
 }

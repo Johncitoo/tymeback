@@ -13,6 +13,7 @@ import { GymsService } from './gyms.service';
 import { CreateGymDto } from './dto/create-gym.dto';
 import { UpdateGymDto } from './dto/update-gym.dto';
 import { QueryGymsDto } from './dto/query-gyms.dto';
+import { Public } from '../auth/public.decorator';
 
 @Controller('gyms')
 export class GymsController {
@@ -33,6 +34,7 @@ export class GymsController {
     return this.gymsService.findOne(id);
   }
 
+  @Public() // Ruta pública para que el frontend pueda buscar gym antes de login
   @Get('slug/:slug')
   findBySlug(@Param('slug') slug: string) {
     return this.gymsService.findBySlug(slug);

@@ -24,6 +24,7 @@ import { CreateNutritionPlanDto } from './dto/create-nutrition-plan.dto';
 import { UpdateNutritionPlanDto } from './dto/update-nutrition-plan.dto';
 import { QueryNutritionPlansDto } from './dto/query-nutrition-plans.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 @Injectable()
 export class NutritionService {
@@ -33,6 +34,7 @@ export class NutritionService {
     @InjectRepository(InbodyScan)        private readonly inbRepo: Repository<InbodyScan>,
     @InjectRepository(NutritionPlan)     private readonly planRepo: Repository<NutritionPlan>,
     @InjectRepository(User)              private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser)           private readonly gymUsersRepo: Repository<GymUser>,
   ) {}
 
   // -------- helpers ----------
@@ -54,19 +56,27 @@ export class NutritionService {
   }
 
   private async assertWriter(byUserId: string, gymId: string) {
-    const u = await this.usersRepo.findOne({ where: { id: byUserId, gymId } });
-    if (!u) throw new NotFoundException('Usuario no pertenece al gimnasio');
-    if (![RoleEnum.ADMIN, RoleEnum.NUTRITIONIST].includes(u.role)) {
+    const gymUser = await this.gymUsersRepo.findOne({ where: { userId: byUserId, gymId } });
+    if (!gymUser) throw new NotFoundException('Usuario no pertenece al gimnasio');
+    if (![RoleEnum.ADMIN, RoleEnum.NUTRITIONIST].includes(gymUser.role)) {
       throw new ForbiddenException('Solo ADMIN o NUTRITIONIST pueden escribir');
     }
-    return u;
+    
+    const u = await this.usersRepo.findOne({ where: { id: byUserId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+    
+    return { ...u, role: gymUser.role };
   }
 
   private async assertClient(clientId: string, gymId: string) {
-    const u = await this.usersRepo.findOne({ where: { id: clientId, gymId } });
-    if (!u) throw new NotFoundException('Cliente no pertenece al gimnasio');
-    if (u.role !== RoleEnum.CLIENT) throw new BadRequestException('No es cliente');
-    return u;
+    const gymUser = await this.gymUsersRepo.findOne({ where: { userId: clientId, gymId } });
+    if (!gymUser) throw new NotFoundException('Cliente no pertenece al gimnasio');
+    if (gymUser.role !== RoleEnum.CLIENT) throw new BadRequestException('No es cliente');
+    
+    const u = await this.usersRepo.findOne({ where: { id: clientId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+    
+    return { ...u, role: gymUser.role };
   }
 
   // ------------------ ANAMNESIS ------------------

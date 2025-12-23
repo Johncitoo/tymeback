@@ -11,9 +11,11 @@ export class GcsService {
   private readonly logger = new Logger(GcsService.name);
 
   constructor(private readonly config: ConfigService) {
-    const projectId = this.config.get<string>('GCP_PROJECT_ID');
-    const privateKey = this.config.get<string>('GCP_PRIVATE_KEY');
-    const clientEmail = this.config.get<string>('GCP_SERVICE_ACCOUNT_EMAIL');
+    const projectId = this.config.get<string>('GCS_PROJECT_ID');
+    const privateKey = this.config.get<string>('GCS_PRIVATE_KEY');
+    const clientEmail = this.config.get<string>('GCS_SERVICE_ACCOUNT_EMAIL');
+
+    this.logger.debug(`🔍 GCS Config - ProjectID: ${projectId ? 'SET' : 'MISSING'}, Email: ${clientEmail ? 'SET' : 'MISSING'}, Key: ${privateKey ? 'SET' : 'MISSING'}`);
 
     if (!projectId || !privateKey || !clientEmail) {
       this.logger.warn('⚠️  GCS credentials not configured - file functionality disabled');
@@ -75,5 +77,16 @@ export class GcsService {
     const file = this.storage.bucket(bucket).file(key);
     const [exists] = await file.exists();
     return exists;
+  }
+
+  async uploadBuffer(args: { bucket: string; key: string; buffer: Buffer; contentType: string }) {
+    const file = this.storage.bucket(args.bucket).file(args.key);
+    await file.save(args.buffer, {
+      contentType: args.contentType,
+      metadata: {
+        contentType: args.contentType,
+      },
+    });
+    this.logger.log(`✅ File uploaded to gs://${args.bucket}/${args.key}`);
   }
 }

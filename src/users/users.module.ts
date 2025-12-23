@@ -4,12 +4,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { User } from './entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { CommunicationsModule } from '../communications/communications.module';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, GymUser]),
     CommunicationsModule,
     forwardRef(() => AuthModule), // Para evitar dependencias circulares
   ],

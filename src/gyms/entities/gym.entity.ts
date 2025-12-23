@@ -17,8 +17,26 @@ export class Gym {
   name!: string;
 
   @Index({ unique: true })
-  @Column({ type: 'text', nullable: true, unique: true })
-  slug!: string | null;
+  @Column({ type: 'text', unique: true })
+  slug!: string; // NOT NULL en el schema
+
+  @Column({ type: 'boolean', name: 'is_active', default: true })
+  isActive!: boolean;
+
+  @Column({ type: 'text', default: 'America/Santiago' })
+  timezone!: string;
+
+  @Column({ type: 'text', default: 'CLP' })
+  currency!: string;
+
+  @Column({ type: 'text', name: 'logo_url', nullable: true })
+  logoUrl!: string | null;
+
+  @Column({ type: 'text', name: 'primary_color', default: '#3B82F6' })
+  primaryColor!: string;
+
+  @Column({ type: 'jsonb', default: {} })
+  settings!: Record<string, any>;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

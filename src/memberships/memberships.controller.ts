@@ -23,7 +23,7 @@ export class MembershipsController {
     dto.byUserId = dto.byUserId ?? user.sub;
     if (dto.gymId !== user.gymId) throw new ForbiddenException('gymId inválido');
     if (dto.byUserId !== user.sub) throw new ForbiddenException('byUserId inválido');
-    return this.service.createFromPlan(dto);
+    return this.service.create(dto); // FIXED: createFromPlan → create
   }
 
   // Listar — cualquier rol autenticado
@@ -44,7 +44,7 @@ export class MembershipsController {
   ) {
     const gid = gymId ?? user.gymId;
     if (gid !== user.gymId) throw new ForbiddenException('gymId inválido');
-    return this.service.getActiveForClient(clientId, gid, activeAt);
+    return this.service.getActiveForClient(clientId); // FIXED: removed extra params
   }
 
   // Consumir sesiones — ADMIN (si prefieres permitir TRAINER, agrega el rol aquí)
@@ -70,6 +70,6 @@ export class MembershipsController {
     const uid = byUserId ?? user.sub;
     if (gid !== user.gymId) throw new ForbiddenException('gymId inválido');
     if (uid !== user.sub) throw new ForbiddenException('byUserId inválido');
-    return this.service.setStatus(id, gid, uid, status);
+    return this.service.updateStatus(id, status); // FIXED: setStatus → updateStatus, removed extra params
   }
 }

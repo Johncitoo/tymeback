@@ -1,10 +1,12 @@
 import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, DataSource } from 'typeorm';
 import * as crypto from 'crypto';
 import { User, RoleEnum } from '../users/entities/user.entity';
 import { AuthToken, TokenTypeEnum } from './entities/auth-token.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
+import { Gym } from '../gyms/entities/gym.entity';
 import { CommunicationsService } from '../communications/communications.service';
 
 export interface AuthUser {
@@ -21,9 +23,12 @@ export interface AuthUser {
 export class AuthService {
   constructor(
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
+    @InjectRepository(Gym) private readonly gymsRepo: Repository<Gym>,
     @InjectRepository(AuthToken) private readonly tokensRepo: Repository<AuthToken>,
     private readonly jwtService: JwtService,
     private readonly communicationsService: CommunicationsService,
+    private readonly dataSource: DataSource,
   ) {}
 
   private hashPassword(plain: string): string {
@@ -49,35 +54,227 @@ export class AuthService {
     return crypto.timingSafeEqual(Buffer.from(calc, 'hex'), Buffer.from(hash, 'hex'));
   }
 
-  private async findByLogin(gymId: string, login: string) {
+  private async findByLogin(login: string): Promise<User | null> {
     const normalized = (login || '').trim().toLowerCase();
-    // intentar por email primero; si no, por RUT (case-insensitive)
-    let user = await this.usersRepo.findOne({ where: { gymId, email: normalized } });
+    // Buscar usuario global por email o RUT (sin gymId)
+    let user = await this.usersRepo.findOne({ where: { email: normalized } });
     if (!user) {
       user = await this.usersRepo
         .createQueryBuilder('u')
-        .where('u.gym_id = :gymId', { gymId })
-        .andWhere('LOWER(u.rut) = LOWER(:rut)', { rut: login })
+        .where('LOWER(u.rut) = LOWER(:rut)', { rut: login })
         .getOne();
     }
     return user;
   }
 
-  async validateUser(gymId: string, login: string, password: string): Promise<User> {
-    const user = await this.findByLogin(gymId, login);
-    if (!user || !user.isActive || !user.hashedPassword) {
+  /**
+   * Valida credenciales multi-gym:
+   * 1. Resuelve gymSlug → gym
+   * 2. Busca usuario global por email/rut
+   * 3. Verifica password
+   * 4. Valida membership en gym_users
+   */
+  async validateUser(gymSlug: string, login: string, password: string): Promise<{ user: User; gymUser: GymUser | null; gymId: string }> {
+    console.log('🔐 [AUTH] validateUser llamado con:', { gymSlug, login, passwordLength: password?.length });
+    
+    // 1. Resolver gymSlug → gym
+    const gym = await this.gymsRepo.findOne({ where: { slug: gymSlug, isActive: true } });
+    if (!gym) {
+      console.log('❌ [AUTH] Gimnasio no encontrado:', gymSlug);
+      throw new UnauthorizedException('Gimnasio no encontrado o inactivo');
+    }
+    console.log('✅ [AUTH] Gym encontrado:', { id: gym.id, name: gym.name, slug: gym.slug });
+
+    // 2. Buscar usuario global
+    const user = await this.findByLogin(login);
+    if (!user || !user.hashedPassword) {
+      console.log('❌ [AUTH] Usuario no encontrado:', { userFound: !!user, hasPassword: !!user?.hashedPassword });
       throw new UnauthorizedException('Credenciales inválidas');
     }
+
+    // Verificar si el usuario está activo
+    if (!user.isActive) {
+      console.log('⚠️ [AUTH] Usuario inactivo (membresía vencida):', { userId: user.id });
+      throw new UnauthorizedException(
+        'Tu cuenta se encuentra temporalmente inactiva. Tu membresía ha vencido y no se ha registrado un nuevo pago. Por favor, contacta con el gimnasio para renovar tu membresía y reactivar tu acceso.'
+      );
+    }
+
+    console.log('✅ [AUTH] Usuario encontrado:', { id: user.id, email: user.email, isActive: user.isActive, hasPassword: !!user.hashedPassword });
+
+    // 3. Verificar password
+    console.log('🔑 [AUTH] Verificando password...');
     const ok = this.verifyPbkdf2(password, user.hashedPassword);
+    console.log('🔑 [AUTH] Resultado verificación:', ok ? '✅ VÁLIDA' : '❌ INVÁLIDA');
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
-    return user;
+
+    // 4. Verificar membership en gym_users
+    let gymUser = await this.gymUsersRepo.findOne({
+      where: { gymId: gym.id, userId: user.id, isActive: true },
+    });
+
+    // 5. SUPER_ADMIN: Si no tiene gym_users, buscar ANY gym_user con rol SUPER_ADMIN
+    if (!gymUser) {
+      const superAdminGymUser = await this.gymUsersRepo.findOne({
+        where: { userId: user.id, role: RoleEnum.SUPER_ADMIN, isActive: true },
+      });
+      
+      if (superAdminGymUser) {
+        // SUPER_ADMIN puede acceder a cualquier gym sin estar explícitamente asociado
+        gymUser = superAdminGymUser;
+      } else {
+        throw new UnauthorizedException('Usuario no tiene acceso a este gimnasio');
+      }
+    }
+
+    return { user, gymUser, gymId: gym.id };
   }
 
-  signToken(user: User) {
+  /**
+   * Obtiene el estado de membresía de un cliente
+   * NONE: Sin membresía activa
+   * TRIAL: En período de prueba (si implementas)
+   * ACTIVE: Membresía activa y vigente
+   * EXPIRED: Membresía vencida
+   */
+  async getMembershipStatus(userId: string, gymId: string): Promise<'NONE' | 'ACTIVE' | 'EXPIRED'> {
+    // Solo aplica para clientes
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId, gymId, role: RoleEnum.CLIENT },
+    });
+
+    if (!gymUser) {
+      // No es cliente o no pertenece a este gym
+      return 'NONE';
+    }
+
+    // Consultar v_active_memberships (vista que ya tienes)
+    const activeMembership = await this.dataSource.query(
+      `SELECT * FROM v_active_memberships WHERE client_gym_user_id = $1 AND gym_id = $2 LIMIT 1`,
+      [gymUser.id, gymId]
+    );
+
+    if (activeMembership && activeMembership.length > 0) {
+      return 'ACTIVE';
+    }
+
+    // Verificar si tiene membresías expiradas
+    const expiredMembership = await this.dataSource.query(
+      `SELECT * FROM memberships m 
+       WHERE m.client_gym_user_id = $1 AND m.gym_id = $2 AND m.ends_on < CURRENT_DATE
+       LIMIT 1`,
+      [gymUser.id, gymId]
+    );
+
+    if (expiredMembership && expiredMembership.length > 0) {
+      return 'EXPIRED';
+    }
+
+    return 'NONE';
+  }
+
+  /**
+   * Obtiene los datos completos de un cliente para el login
+   */
+  async getClientFullData(userId: string, gymId: string): Promise<any> {
+    try {
+      // Obtener gymUser del cliente
+      const gymUser = await this.gymUsersRepo.findOne({
+        where: { userId, gymId, role: RoleEnum.CLIENT },
+      });
+
+      if (!gymUser) {
+        return null;
+      }
+
+      // Obtener datos del usuario
+      const user = await this.usersRepo.findOne({ where: { id: userId } });
+      if (!user) {
+        return null;
+      }
+
+      // Obtener datos del cliente (tabla clients)
+      const clientData = await this.dataSource.query(
+        `SELECT c.*
+         FROM clients c
+         WHERE c.user_id = $1 AND c.gym_id = $2 AND c.deleted_at IS NULL
+         LIMIT 1`,
+        [userId, gymId]
+      );
+
+      // Obtener membresía activa
+      const membershipData = await this.dataSource.query(
+        `SELECT m.*, p.name as plan_name, p.id as plan_id
+         FROM v_active_memberships m
+         LEFT JOIN plans p ON m.plan_id = p.id
+         WHERE m.client_gym_user_id = $1 AND m.gym_id = $2
+         LIMIT 1`,
+        [gymUser.id, gymId]
+      );
+
+      if (!clientData || clientData.length === 0) {
+        // Si no hay registro en clients, devolver datos básicos
+        return {
+          id: user.id,
+          gymId,
+          role: 'CLIENT',
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          fullName: user.fullName,
+          phone: user.phone,
+          rut: user.rut,
+          isActive: user.isActive,
+          avatarUrl: user.avatarUrl,
+        };
+      }
+
+      const client = clientData[0];
+      const membership = membershipData && membershipData.length > 0 ? membershipData[0] : null;
+
+      // Construir objeto completo del cliente
+      return {
+        id: user.id,
+        gymId,
+        role: 'CLIENT',
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        fullName: user.fullName,
+        phone: user.phone,
+        rut: user.rut,
+        isActive: user.isActive,
+        avatarUrl: user.avatarUrl,
+        // Datos específicos del cliente
+        address: client.address,
+        birthDate: client.birth_date,
+        gender: client.gender,
+        sex: client.sex,
+        emergencyContact: client.emergency_contact_name ? {
+          name: client.emergency_contact_name,
+          phone: client.emergency_contact_phone,
+          relationship: client.emergency_contact_relationship,
+        } : undefined,
+        trainerId: client.trainer_id,
+        privateSessions: client.private_sessions || 0,
+        membershipExpiry: membership ? membership.ends_on : null,
+        plan: membership ? {
+          id: membership.plan_id,
+          name: membership.plan_name,
+        } : null,
+        planId: membership ? membership.plan_id : null,
+      };
+    } catch (error) {
+      console.error('Error obteniendo datos completos del cliente:', error);
+      return null;
+    }
+  }
+
+  signToken(user: User, gymId: string, role: RoleEnum) {
     const payload = {
       sub: user.id,
-      gymId: user.gymId,
-      role: user.role,
+      gymId: gymId, // Del gym_user
+      role: role,   // Del gym_user (puede ser diferente por gym)
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -86,11 +283,11 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  toAuthUser(user: User): AuthUser {
+  toAuthUser(user: User, gymId: string, role: RoleEnum): AuthUser {
     return {
       id: user.id,
-      gymId: user.gymId,
-      role: user.role,
+      gymId: gymId,
+      role: role,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -98,31 +295,28 @@ export class AuthService {
     };
   }
 
-  async getProfile(userId: string, gymId: string): Promise<User> {
-    const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
+  async getProfile(userId: string): Promise<User> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
     return user;
   }
 
-  async updateProfile(userId: string, gymId: string, dto: any): Promise<User> {
-    const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
+  async updateProfile(userId: string, dto: any): Promise<User> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
-    // Actualizar fullName si se proporciona firstName o lastName
-    if (dto.firstName !== undefined || dto.lastName !== undefined) {
-      const firstName = dto.firstName !== undefined ? dto.firstName : '';
-      const lastName = dto.lastName !== undefined ? dto.lastName : '';
-      user.fullName = `${firstName} ${lastName}`.trim();
-    }
+    // fullName ya es computed en BD, no necesitamos actualizarlo manualmente
 
+    if (dto.firstName !== undefined) user.firstName = dto.firstName;
+    if (dto.lastName !== undefined) user.lastName = dto.lastName;
     if (dto.email !== undefined) user.email = dto.email;
     if (dto.phone !== undefined) user.phone = dto.phone;
 
     return this.usersRepo.save(user);
   }
 
-  async changePassword(userId: string, gymId: string, currentPassword: string, newPassword: string): Promise<void> {
-    const user = await this.usersRepo.findOne({ where: { id: userId, gymId } });
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
     // Verificar contraseña actual
@@ -170,6 +364,95 @@ export class AuthService {
 
     await this.tokensRepo.save(authToken);
     return token;
+  }
+
+  /**
+   * Envía correo de recuperación de contraseña
+   */
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.usersRepo.findOne({ where: { email: email.toLowerCase().trim() } });
+    
+    // Por seguridad, no revelamos si el email existe
+    if (!user) {
+      console.log(`Forgot password request for non-existent email: ${email}`);
+      return;
+    }
+
+    // Generar token de recuperación
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1); // 1 hora de validez
+
+    // Guardar token
+    const authToken = this.tokensRepo.create({
+      userId: user.id,
+      token,
+      type: TokenTypeEnum.PASSWORD_RESET,
+      expiresAt,
+      isUsed: false,
+    });
+    await this.tokensRepo.save(authToken);
+
+    // Obtener el gymId del usuario (primer gym al que pertenece)
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId: user.id },
+    });
+
+    if (!gymUser) {
+      console.log(`User ${user.id} has no gym membership, skipping email`);
+      return;
+    }
+
+    // Enviar correo de recuperación
+    try {
+      await this.communicationsService.sendPasswordResetEmail(
+        gymUser.gymId,
+        user.id,
+        user.email!,
+        user.fullName,
+        token
+      );
+      console.log(`✅ Password reset email sent to ${user.email}`);
+    } catch (error) {
+      console.error(`❌ Error sending password reset email:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restablece la contraseña con un token válido
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const authToken = await this.tokensRepo.findOne({
+      where: { token, type: TokenTypeEnum.PASSWORD_RESET },
+    });
+
+    if (!authToken) {
+      return { success: false, message: 'Token inválido' };
+    }
+
+    if (authToken.isUsed) {
+      return { success: false, message: 'Este enlace ya fue utilizado' };
+    }
+
+    if (new Date() > authToken.expiresAt) {
+      return { success: false, message: 'Este enlace ha expirado' };
+    }
+
+    // Actualizar contraseña
+    const hashedPassword = this.hashPassword(newPassword);
+    await this.usersRepo.update(
+      { id: authToken.userId },
+      { hashedPassword }
+    );
+
+    // Marcar token como usado
+    authToken.isUsed = true;
+    authToken.usedAt = new Date();
+    await this.tokensRepo.save(authToken);
+
+    console.log(`✅ Password reset successful for user ${authToken.userId}`);
+    return { success: true, message: 'Contraseña actualizada exitosamente' };
   }
 
   /**

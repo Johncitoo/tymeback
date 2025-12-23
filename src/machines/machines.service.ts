@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
   import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { ILike, In, Repository } from 'typeorm';
 import { Machine, MachineTypeEnum } from './entities/machine.entity';
 import { MachineMaintenance } from './entities/machine-maintenance.entity';
 import { CreateMachineDto } from './dto/create-machine.dto';
@@ -12,6 +12,7 @@ import { UpdateMachineDto } from './dto/update-machine.dto';
 import { QueryMachinesDto } from './dto/query-machines.dto';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { MailerService } from '../communications/mailer/mailer.service';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class MachinesService {
     @InjectRepository(Machine) private readonly repo: Repository<Machine>,
     @InjectRepository(MachineMaintenance) private readonly maintRepo: Repository<MachineMaintenance>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
     private readonly mailer: MailerService,
   ) {}
 
@@ -29,9 +31,15 @@ export class MachinesService {
   }
 
   private async notifyAdminsMachineOOS(gymId: string, machine: Machine) {
-    // Buscar admins activos del gimnasio
-    const admins = await this.usersRepo.find({ where: { gymId, role: RoleEnum.ADMIN, isActive: true } });
-    if (!admins.length) return;
+    // Buscar admins activos del gimnasio via gym_users
+    const gymAdmins = await this.gymUsersRepo.find({
+      where: { gymId, role: RoleEnum.ADMIN, isActive: true },
+      select: ['userId'],
+    });
+    if (!gymAdmins.length) return;
+
+    const adminIds = gymAdmins.map(gu => gu.userId);
+    const admins = await this.usersRepo.find({ where: { id: In(adminIds) } });
 
     const subject = `Máquina fuera de servicio: ${machine.name}`;
     const html = `

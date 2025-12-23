@@ -10,13 +10,16 @@ export enum CheckoutReasonEnum {
 }
 
 @Entity({ name: 'attendance' })
-@Index(['clientId', 'checkInAt'])
+@Index(['clientGymUserId', 'checkInAt'])
 export class Attendance {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column('uuid', { name: 'client_id' })
-  clientId!: string;
+  @Column('uuid', { name: 'gym_id' })
+  gymId!: string;
+
+  @Column('uuid', { name: 'client_gym_user_id' })
+  clientGymUserId!: string;
 
   @Column('timestamptz', { name: 'check_in_at' })
   checkInAt!: Date;

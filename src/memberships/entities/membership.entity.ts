@@ -14,14 +14,17 @@ export enum MembershipStatusEnum {
 }
 
 @Entity({ name: 'memberships' })
-@Index(['clientId'])
+@Index(['clientGymUserId'])
 export class Membership {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  // CLIENT user id
-  @Column('uuid', { name: 'client_id' })
-  clientId!: string;
+  @Column('uuid', { name: 'gym_id' })
+  gymId!: string;
+
+  // CLIENT gym_user id (not direct user id)
+  @Column('uuid', { name: 'client_gym_user_id' })
+  clientGymUserId!: string;
 
   @Column('uuid', { name: 'plan_id' })
   planId!: string;

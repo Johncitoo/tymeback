@@ -1,16 +1,20 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { DashboardSummaryDto } from './dto/dashboard-summary.dto';
 import { SalesSeriesDto } from './dto/sales-series.dto';
 import { RecentPaymentsDto } from './dto/recent-payments.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtUser } from '../auth/current-user.decorator';
 
 @Controller('dashboard')
+@UseGuards(JwtAuthGuard)
 export class DashboardController {
   constructor(private readonly service: DashboardService) {}
 
   @Get('summary')
-  async summary(@Query() q: DashboardSummaryDto) {
-    const data = await this.service.summary(q);
+  async summary(@Query() q: DashboardSummaryDto, @CurrentUser() user: JwtUser) {
+    const data = await this.service.summary({ ...q, gymId: user.gymId });
     
     // Transformar al formato que espera el frontend (DashboardStats)
     return {
@@ -28,12 +32,12 @@ export class DashboardController {
   }
 
   @Get('sales-series')
-  salesSeries(@Query() q: SalesSeriesDto) {
-    return this.service.salesSeries(q);
+  salesSeries(@Query() q: SalesSeriesDto, @CurrentUser() user: JwtUser) {
+    return this.service.salesSeries({ ...q, gymId: user.gymId });
   }
 
   @Get('recent-payments')
-  recentPayments(@Query() q: RecentPaymentsDto) {
-    return this.service.recentPayments(q);
+  recentPayments(@Query() q: RecentPaymentsDto, @CurrentUser() user: JwtUser) {
+    return this.service.recentPayments({ ...q, gymId: user.gymId });
   }
 }

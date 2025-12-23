@@ -16,9 +16,9 @@ async function bootstrap() {
     bodyParser: true,
   });
 
-  // Aumentar límite de body-parser para uploads (10MB)
-  app.use(require('express').json({ limit: '10mb' }));
-  app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
+  // NOTA: NO usar body-parser middleware aquí porque interfiere con multipart/form-data
+  // NestJS ya incluye body-parser por defecto cuando bodyParser: true
+  // Multer (FileInterceptor) maneja multipart/form-data automáticamente
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -40,6 +40,9 @@ async function bootstrap() {
     'https://www.somostyme.cl',
     'http://somostyme.cl',
     'http://www.somostyme.cl',
+    // Vercel deployments
+    'https://tyme-front-test-git-dev-johncitoos-projects.vercel.app',
+    'https://tyme-front-test-7qrzrtdtl-johncitoos-projects.vercel.app',
   ];
 
   app.enableCors({

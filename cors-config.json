@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://tyme-front-test-git-dev-johncitoos-projects.vercel.app",
+      "http://localhost:5173",
+      "http://localhost:3000"
+    ],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+    "responseHeader": ["Content-Type", "x-goog-resumable"],
+    "maxAgeSeconds": 3600
+  }
+]

@@ -12,6 +12,7 @@ import { MachinesModule } from './machines/machines.module';
 import { ExercisesModule } from './exercises/exercises.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { SessionBurnsModule } from './session-burns/session-burns.module';
 import { RoutinesModule } from './routines/routines.module';
@@ -32,6 +33,7 @@ import { OpsModule } from './ops/ops.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AuthModule } from './auth/auth.module';
 import { AuthSecurityModule } from './auth-security/auth-security.module';
+import { TestModule } from './test/test.module';
 
 @Module({
   imports: [
@@ -53,6 +55,8 @@ import { AuthSecurityModule } from './auth-security/auth-security.module';
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_NAME || 'gym_db',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
+      migrationsRun: false, // Deshabilitado temporalmente - columna ya agregada manualmente
       synchronize: false, // Desactivado - usamos bd.sql para el schema
       logging: process.env.DB_LOGGING === 'true',
       extra: {
@@ -70,6 +74,7 @@ import { AuthSecurityModule } from './auth-security/auth-security.module';
     ExercisesModule,
     MembershipsModule,
     PaymentsModule,
+    PromotionsModule,
     AttendanceModule,
     SessionBurnsModule,
     RoutinesModule,
@@ -88,6 +93,7 @@ import { AuthSecurityModule } from './auth-security/auth-security.module';
     NutritionModule,
     OpsModule,
     AppointmentsModule,
+    TestModule,
   ],
   controllers: [AppController],
   providers: [AppService],

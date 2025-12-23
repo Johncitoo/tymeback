@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { AppFile, FilePurposeEnum, FileStatusEnum } from './entities/file.entity';
@@ -35,6 +35,7 @@ function extOf(name: string) {
 
 @Injectable()
 export class FilesService {
+  private readonly logger = new Logger(FilesService.name);
   private readonly bucket: string;
   private readonly putTtl: number;
   private readonly maxBytes: number;
@@ -44,10 +45,10 @@ export class FilesService {
     private readonly gcs: GcsService,
     private readonly config: ConfigService,
   ) {
-    this.bucket = this.config.get<string>('GCP_BUCKET_NAME') || '';
+    this.bucket = this.config.get<string>('GCS_BUCKET_NAME') || '';
     // GCS opcional - si no está configurado, los uploads fallarán pero el backend iniciará
     if (!this.bucket) {
-      console.warn('⚠️  GCP_BUCKET_NAME no configurado - funcionalidad de archivos deshabilitada');
+      console.warn('⚠️  GCS_BUCKET_NAME no configurado - funcionalidad de archivos deshabilitada');
     }
     this.putTtl = Number(this.config.get<string>('GCS_SIGNED_PUT_TTL_SECONDS') ?? '900'); // 15m
     this.maxBytes = Number(this.config.get<string>('UPLOAD_MAX_BYTES') ?? String(10 * 1024 * 1024)); // 10MB
@@ -79,7 +80,7 @@ export class FilesService {
 
     const row = this.repo.create({
       gymId: dto.gymId,
-      ownerUserId: dto.ownerUserId ?? null,
+      uploadedByUserId: dto.ownerUserId ?? null,
       originalName: dto.originalName,
       mimeType: dto.mimeType,
       // BIGINT seguro: guardamos como string
@@ -123,7 +124,8 @@ export class FilesService {
 
     let publicUrl: string | null = row.publicUrl;
     if (dto.makePublic === true) {
-      await this.gcs.makePublic(row.storageBucket, row.storageKey);
+      // No llamar a makePublic() porque el bucket tiene Uniform Bucket-Level Access
+      // En su lugar, generar la URL pública directamente
       publicUrl = `https://storage.googleapis.com/${row.storageBucket}/${encodeURIComponent(row.storageKey)}`;
     }
 
@@ -137,7 +139,7 @@ export class FilesService {
   // 3) Listado
   async findAll(q: QueryFilesDto) {
     const where: any = { gymId: q.gymId };
-    if (q.ownerUserId) where.ownerUserId = q.ownerUserId;
+    if (q.ownerUserId) where.uploadedByUserId = q.ownerUserId;
     if (q.purpose) where.purpose = q.purpose;
     if (q.status) where.status = q.status;
     const take = Math.min(Math.max(q.limit ?? 20, 1), 100);
@@ -184,5 +186,85 @@ export class FilesService {
       expiresIn: 600, // 10m
     });
     return { url, expiresIn: 600 };
+  }
+
+  // 7) Upload directo vía backend (más seguro)
+  async uploadDirectToGCS(params: {
+    gymId: string;
+    ownerUserId?: string;
+    file: Express.Multer.File;
+    purpose: FilePurposeEnum;
+    makePublic: boolean;
+  }) {
+    const { gymId, ownerUserId, file, purpose, makePublic } = params;
+
+    // Validaciones
+    if (!ALLOWED_MIME.has(file.mimetype)) {
+      throw new BadRequestException('MIME no permitido');
+    }
+    if (file.size > this.maxBytes) {
+      throw new BadRequestException(`Archivo excede límite (${this.maxBytes} bytes)`);
+    }
+
+    const key = this.buildKey(gymId, purpose, file.originalname);
+
+    // Crear registro en BD
+    const row = this.repo.create({
+      gymId,
+      uploadedByUserId: ownerUserId ?? null,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: String(file.size),
+      storageBucket: this.bucket,
+      storageKey: key,
+      publicUrl: null,
+      purpose,
+      status: FileStatusEnum.PENDING,
+    });
+    const saved = await this.repo.save(row);
+
+    try {
+      // Subir a GCS usando el buffer del archivo
+      await this.gcs.uploadBuffer({
+        bucket: this.bucket,
+        key,
+        buffer: file.buffer,
+        contentType: file.mimetype,
+      });
+
+      // No guardar signed URLs en DB - se generarán on-demand vía /files/:id/download-url
+      // Solo archivos NO sensibles pueden tener URL estática (si bucket es público)
+      let publicUrl: string | null = null;
+      const publicPurposes = ['AVATAR', 'EXERCISE_IMAGE', 'MACHINE_IMAGE'];
+      
+      if (makePublic && publicPurposes.includes(purpose)) {
+        // Para archivos públicos: intentar URL estática (funcionará si bucket es público)
+        publicUrl = `https://storage.googleapis.com/${this.bucket}/${encodeURIComponent(key)}`;
+        this.logger.log(`📸 Static URL for ${purpose}: ${publicUrl}`);
+      } else {
+        // Archivos sensibles: NO guardar URL, se generará on-demand con autenticación
+        this.logger.log(`🔒 Private file ${purpose} - no public URL stored`);
+      }
+
+      // Actualizar estado a READY
+      saved.publicUrl = publicUrl;
+      saved.status = FileStatusEnum.READY;
+      await this.repo.save(saved);
+
+      return {
+        fileId: saved.id,
+        publicUrl: saved.publicUrl,
+        storageKey: saved.storageKey,
+        status: saved.status,
+        originalName: saved.originalName,
+        mimeType: saved.mimeType,
+        sizeBytes: saved.sizeBytes,
+      };
+    } catch (error) {
+      // Si falla el upload, marcar como error
+      saved.status = FileStatusEnum.DELETED;
+      await this.repo.save(saved);
+      throw new BadRequestException(`Error subiendo a GCS: ${error.message}`);
+    }
   }
 }

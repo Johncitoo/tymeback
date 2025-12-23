@@ -10,17 +10,17 @@ import {
 
 @Entity({ name: 'clients' })
 export class Client {
-  // PK = user_id (FK a users.id)
-  @PrimaryColumn('uuid', { name: 'user_id' })
-  userId!: string;
+  // PK = gym_user_id (FK a gym_users.id)
+  @PrimaryColumn('uuid', { name: 'gym_user_id' })
+  gymUserId!: string;
 
   @Index()
-  @Column('uuid', { name: 'trainer_id', nullable: true })
-  trainerId!: string | null;
+  @Column('uuid', { name: 'trainer_gym_user_id', nullable: true })
+  trainerGymUserId!: string | null;
 
   @Index()
-  @Column('uuid', { name: 'nutritionist_id', nullable: true })
-  nutritionistId!: string | null;
+  @Column('uuid', { name: 'nutritionist_gym_user_id', nullable: true })
+  nutritionistGymUserId!: string | null;
 
   @Column('text', { name: 'private_sessions_note', nullable: true })
   privateSessionsNote!: string | null;

@@ -12,6 +12,7 @@ import { Payment } from '../payments/entities/payment.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../users/entities/gym-user.entity';
 import { DashboardSummaryDto } from './dto/dashboard-summary.dto';
 import { SalesSeriesDto } from './dto/sales-series.dto';
 import { RecentPaymentsDto } from './dto/recent-payments.dto';
@@ -23,6 +24,7 @@ export class DashboardService {
     @InjectRepository(Membership) private readonly memRepo: Repository<Membership>,
     @InjectRepository(Attendance) private readonly attRepo: Repository<Attendance>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
   ) {}
 
   // ----------------- helpers de fecha -----------------
@@ -111,12 +113,21 @@ export class DashboardService {
     // TODO: Filtrar por gymId cuando se tenga la relación
     const activeMembers = await this.memRepo.count({ where: memWhere });
 
-    // entrenadores activos (is_active = true)
-    const trainerWhere: any = { role: RoleEnum.TRAINER, isActive: true };
+    // entrenadores activos (is_active = true) - usar gym_users en vez de users directamente
+    let activeTrainers = 0;
     if (dto.gymId) {
-      trainerWhere.gymId = dto.gymId;
+      const trainerQuery = await this.gymUsersRepo
+        .createQueryBuilder('gu')
+        .where('gu.gym_id = :gymId', { gymId: dto.gymId })
+        .andWhere('gu.role = :role', { role: RoleEnum.TRAINER })
+        .andWhere('gu.is_active = true')
+        .getCount();
+      activeTrainers = trainerQuery;
+    } else {
+      activeTrainers = await this.gymUsersRepo.count({ 
+        where: { role: RoleEnum.TRAINER, isActive: true }
+      });
     }
-    const activeTrainers = await this.usersRepo.count({ where: trainerWhere });
 
     // clientes dentro del gimnasio (asistencias abiertas)
     // TODO: Filtrar por gymId cuando attendance tenga relación con gym

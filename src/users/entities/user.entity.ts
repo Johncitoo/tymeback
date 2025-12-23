@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 
 export enum RoleEnum {
+  SUPER_ADMIN = 'SUPER_ADMIN', // Administrador global de la plataforma
   ADMIN = 'ADMIN',
   TRAINER = 'TRAINER',
   NUTRITIONIST = 'NUTRITIONIST',
@@ -36,11 +37,7 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  // Multi-gimnasio
-  @Index()
-  @Column('uuid', { name: 'gym_id' })
-  gymId!: string;
-
+  // Email único global (multi-gimnasio)
   @Index()
   @Column('citext', { nullable: true })
   email!: string | null;
@@ -48,13 +45,19 @@ export class User {
   @Column('text', { name: 'hashed_password', nullable: true })
   hashedPassword!: string | null;
 
+  // NOTA: Esta columna 'role' ya NO existe en la BD (se movió a gym_users)
+  // Se mantiene en la entidad temporalmente para evitar romper servicios existentes
+  // TODO: Refactorizar todos los servicios para usar gymUser.role en vez de user.role
   @Index()
   @Column({
     type: 'enum',
     enum: RoleEnum,
-    enumName: 'role_enum', // usa el enum de Postgres existente
+    enumName: 'role_enum',
+    select: false, // NO seleccionar por defecto porque causa error en BD
+    insert: false, // NO insertar porque no existe en BD
+    update: false, // NO actualizar porque no existe en BD
   })
-  role!: RoleEnum;
+  role?: RoleEnum; // Opcional porque no existe en BD
 
   @Column('text', { name: 'first_name' })
   firstName!: string;

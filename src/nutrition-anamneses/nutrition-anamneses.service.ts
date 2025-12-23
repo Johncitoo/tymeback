@@ -6,6 +6,7 @@ import { CreateAnamnesisDto } from './dto/create-anamnesis.dto';
 import { UpdateAnamnesisDto } from './dto/update-anamnesis.dto';
 import { QueryAnamnesesDto } from './dto/query-anamneses.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 @Injectable()
 export class NutritionAnamnesesService {
@@ -14,12 +15,18 @@ export class NutritionAnamnesesService {
     private readonly repo: Repository<NutritionAnamnesis>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser)
+    private readonly gymUsersRepo: Repository<GymUser>,
   ) {}
 
   private async assertUserInGym(userId: string, gymId: string) {
-    const u = await this.usersRepo.findOne({ where: { id: userId, gymId } });
-    if (!u) throw new ForbiddenException('Usuario no pertenece al gimnasio');
-    return u;
+    const gymUser = await this.gymUsersRepo.findOne({ where: { userId, gymId } });
+    if (!gymUser) throw new ForbiddenException('Usuario no pertenece al gimnasio');
+    
+    const u = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+    
+    return { ...u, role: gymUser.role };
   }
 
   // ADMIN o NUTRITIONIST pueden crear/editar

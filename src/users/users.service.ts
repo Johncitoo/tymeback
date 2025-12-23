@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { User, RoleEnum } from './entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -21,6 +22,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly repo: Repository<User>,
+    @InjectRepository(GymUser)
+    private readonly gymUsersRepo: Repository<GymUser>,
     private readonly commsService: CommunicationsService,
     @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
@@ -33,13 +36,37 @@ export class UsersService {
     return `pbkdf2$100000$${salt}$${hash}`;
   }
 
-  async create(dto: CreateUserDto): Promise<User> {
+  async create(dto: CreateUserDto, gymId: string): Promise<User> {
     console.log('🟣 UsersService.create - START');
-    console.log('🟣 DTO:', dto);
+    console.log('🟣 DTO:', dto, 'gymId:', gymId);
     
+    // Verificar si el email ya existe globalmente (users es global)
+    if (dto.email) {
+      const existing = await this.repo.findOne({ where: { email: dto.email } });
+      if (existing) {
+        // Usuario existe, verificar si ya tiene membership en este gym
+        const gymUser = await this.gymUsersRepo.findOne({
+          where: { userId: existing.id, gymId },
+        });
+        if (gymUser) {
+          throw new ConflictException('Este usuario ya existe en este gimnasio');
+        }
+        // Usuario existe pero no en este gym → crear solo gym_user
+        const newGymUser = this.gymUsersRepo.create({
+          gymId,
+          userId: existing.id,
+          role: dto.role,
+          isActive: dto.isActive ?? true,
+        });
+        await this.gymUsersRepo.save(newGymUser);
+        console.log('✅ Membership creado para usuario existente:', existing.id);
+        return existing;
+      }
+    }
+
+    // Usuario nuevo → crear user + gym_user
     const entity = this.repo.create({
-      gymId: dto.gymId,
-      role: dto.role,
+      // NOTA: role NO va en users (está en gym_users)
       firstName: dto.firstName,
       lastName: dto.lastName,
       email: dto.email ?? null,
@@ -59,19 +86,41 @@ export class UsersService {
       const saved = await this.repo.save(entity);
       console.log('🟣 User saved:', saved.id);
 
+      // Actualizar uploaded_by_user_id del avatar si existe
+      if (dto.avatarUrl) {
+        console.log('🟣 Updating avatar file ownership...');
+        const match = dto.avatarUrl.match(/\/([^\/\?]+)(\?|$)/);
+        if (match) {
+          const storageKey = decodeURIComponent(match[1]);
+          await this.repo.query(
+            `UPDATE files SET uploaded_by_user_id = $1 WHERE gym_id = $2 AND storage_key LIKE $3 AND purpose = 'AVATAR' AND uploaded_by_user_id IS NULL`,
+            [saved.id, gymId, `%${storageKey}%`]
+          );
+          console.log('🟣 Avatar file ownership updated');
+        }
+      }
+
+      // Crear gym_user (membership)
+      const gymUser = this.gymUsersRepo.create({
+        gymId,
+        userId: saved.id,
+        role: dto.role,
+        isActive: dto.isActive ?? true,
+      });
+      await this.gymUsersRepo.save(gymUser);
+      console.log('🟣 Gym user membership created:', gymUser.id);
+
       // Si es CLIENT y tiene email, enviar email de activación
-      if (saved.role === RoleEnum.CLIENT && saved.email) {
+      if (dto.role === RoleEnum.CLIENT && saved.email) {
         console.log('🟣 User is CLIENT with email, sending activation email...');
         try {
           console.log('🟣 Creating activation token...');
-          // Generar token de activación (válido 72 horas)
           const activationToken = await this.authService.createActivationToken(saved.id, 72);
           console.log('🟣 Activation token created:', activationToken);
           
           console.log('🟣 Calling sendAccountActivationEmail...');
-          // Enviar email de activación
           await this.commsService.sendAccountActivationEmail(
-            saved.gymId,
+            gymId,
             saved.id,
             saved.email,
             saved.fullName,
@@ -79,7 +128,6 @@ export class UsersService {
           );
           console.log('✅ Activation email sent successfully');
         } catch (emailErr) {
-          // No fallar el registro si el email falla
           console.error('⚠️ Error sending activation email (not failing registration):', emailErr);
         }
       }
@@ -89,12 +137,8 @@ export class UsersService {
     } catch (err: any) {
       console.error('❌ Error in UsersService.create:', err);
       if (err?.code === '23505') {
-        // Unique: email por gym (no null) o rut por gym
-        if (String(err?.detail || '').includes('(gym_id, email)')) {
-          throw new ConflictException('Ya existe un usuario con ese email en este gimnasio');
-        }
-        if (String(err?.detail || '').includes('(gym_id, rut)')) {
-          throw new ConflictException('Ya existe un usuario con ese RUT en este gimnasio');
+        if (String(err?.detail || '').includes('email')) {
+          throw new ConflictException('Ya existe un usuario con ese email');
         }
         throw new ConflictException('Registro duplicado');
       }
@@ -103,29 +147,85 @@ export class UsersService {
   }
 
   async findAll(q: QueryUsersDto): Promise<{ data: User[]; total: number }> {
-    const where: any = { gymId: q.gymId };
-
-    if (q.role) where.role = q.role;
-    if (typeof q.isActive === 'boolean') where.isActive = q.isActive;
-
-    const qb = this.repo.createQueryBuilder('u').where(where);
-
-    if (q.q) {
-      const like = `%${q.q}%`;
-      qb.andWhere(
-        '(u.full_name ILIKE :like OR u.email ILIKE :like OR u.rut ILIKE :like OR u.phone ILIKE :like)',
-        { like },
-      );
+    try {
+      // Usar query manual con el QueryRunner para evitar problemas de TypeORM metadata
+      const queryRunner = this.repo.manager.connection.createQueryRunner();
+      
+      // Construir query base
+      let sql = `
+        SELECT 
+          u.id, u.email, u.first_name as "firstName", u.last_name as "lastName", 
+          u.full_name as "fullName", u.phone, u.rut, u.birth_date as "birthDate",
+          u.gender, u.sex, u.address, u.avatar_url as "avatarUrl",
+          (
+            SELECT f.id FROM files f 
+            WHERE f.uploaded_by_user_id = u.id
+            AND f.gym_id = gu.gym_id 
+            AND f.purpose = 'AVATAR'
+            AND f.status = 'READY'
+            ORDER BY f.created_at DESC
+            LIMIT 1
+          ) as "avatarFileId",
+          u.platform_role as "platformRole", u.is_active as "isActive",
+          u.created_at as "createdAt", u.updated_at as "updatedAt",
+          COUNT(*) OVER() as total
+        FROM users u
+        INNER JOIN gym_users gu ON gu.user_id = u.id
+        WHERE gu.gym_id = $1
+      `;
+      
+      const params: any[] = [q.gymId];
+      let paramIndex = 2;
+      
+      if (q.role) {
+        sql += ` AND gu.role = $${paramIndex}`;
+        params.push(q.role);
+        paramIndex++;
+      }
+      
+      if (typeof q.isActive === 'boolean') {
+        sql += ` AND gu.is_active = $${paramIndex}`;
+        params.push(q.isActive);
+        paramIndex++;
+      }
+      
+      if (q.q) {
+        const like = `%${q.q}%`;
+        sql += ` AND (u.full_name ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex} OR u.rut ILIKE $${paramIndex} OR u.phone ILIKE $${paramIndex})`;
+        params.push(like);
+        paramIndex++;
+      }
+      
+      sql += ` ORDER BY u.created_at DESC`;
+      sql += ` LIMIT ${q.limit} OFFSET ${q.offset}`;
+      
+      console.log('Manual SQL:', sql);
+      console.log('Params:', params);
+      
+      const result = await queryRunner.query(sql, params);
+      await queryRunner.release();
+      
+      const total = result.length > 0 ? parseInt(result[0].total, 10) : 0;
+      const data = result.map(row => {
+        delete row.total;
+        return row;
+      });
+      
+      return { data, total };
+    } catch (error) {
+      console.error('Error en findAll:', error);
+      throw error;
     }
-
-    qb.orderBy('u.created_at', 'DESC').skip(q.offset).take(q.limit);
-
-    const [data, total] = await qb.getManyAndCount();
-    return { data, total };
   }
 
   async findOne(id: string, gymId: string): Promise<User> {
-    const user = await this.repo.findOne({ where: { id, gymId } });
+    // Verificar que el usuario tenga membership en este gym
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId: id, gymId },
+    });
+    if (!gymUser) throw new NotFoundException('Usuario no encontrado en este gimnasio');
+
+    const user = await this.repo.findOne({ where: { id } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
     return user;
   }
@@ -133,9 +233,9 @@ export class UsersService {
   async update(id: string, gymId: string, dto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id, gymId);
 
+    // Actualizar datos del user (global)
     if (dto.firstName !== undefined) user.firstName = dto.firstName;
     if (dto.lastName !== undefined) user.lastName = dto.lastName;
-    if (dto.role !== undefined) user.role = dto.role;
     if (dto.email !== undefined) user.email = dto.email;
     if (dto.password !== undefined) {
       user.hashedPassword = dto.password ? this.hashPassword(dto.password) : null;
@@ -149,15 +249,24 @@ export class UsersService {
     if (dto.avatarUrl !== undefined) user.avatarUrl = dto.avatarUrl;
     if (dto.isActive !== undefined) user.isActive = dto.isActive;
 
+    // Actualizar role y isActive en gym_users (específico del gym)
+    if (dto.role !== undefined || dto.isActive !== undefined) {
+      const gymUser = await this.gymUsersRepo.findOne({
+        where: { userId: id, gymId },
+      });
+      if (gymUser) {
+        if (dto.role !== undefined) gymUser.role = dto.role;
+        if (dto.isActive !== undefined) gymUser.isActive = dto.isActive;
+        await this.gymUsersRepo.save(gymUser);
+      }
+    }
+
     try {
       return await this.repo.save(user);
     } catch (err: any) {
       if (err?.code === '23505') {
-        if (String(err?.detail || '').includes('(gym_id, email)')) {
-          throw new ConflictException('Ya existe un usuario con ese email en este gimnasio');
-        }
-        if (String(err?.detail || '').includes('(gym_id, rut)')) {
-          throw new ConflictException('Ya existe un usuario con ese RUT en este gimnasio');
+        if (String(err?.detail || '').includes('email')) {
+          throw new ConflictException('Ya existe un usuario con ese email');
         }
         throw new ConflictException('Registro duplicado');
       }
@@ -166,9 +275,21 @@ export class UsersService {
   }
 
   async remove(id: string, gymId: string): Promise<{ id: string }> {
-    // Hard delete para permitir reutilizar emails/RUTs en testing
-    const res = await this.repo.delete({ id, gymId });
-    if (!res.affected) throw new NotFoundException('Usuario no encontrado');
+    // Eliminar solo gym_user (membership en este gym)
+    // El user global se mantiene (puede tener memberships en otros gyms)
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId: id, gymId },
+    });
+    if (!gymUser) throw new NotFoundException('Usuario no encontrado en este gimnasio');
+
+    await this.gymUsersRepo.delete(gymUser.id);
+    
+    // OPCIONAL: Si el user no tiene más memberships, eliminar user también
+    const otherMemberships = await this.gymUsersRepo.count({ where: { userId: id } });
+    if (otherMemberships === 0) {
+      await this.repo.delete(id);
+    }
+
     return { id };
   }
 

@@ -6,18 +6,29 @@ import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
 import { QueryAttendanceDto } from './dto/query-attendance.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     @InjectRepository(Attendance) private readonly repo: Repository<Attendance>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser) private readonly gymUsersRepo: Repository<GymUser>,
   ) {}
 
   private async assertUserInGym(userId: string, gymId: string) {
-    const u = await this.usersRepo.findOne({ where: { id: userId, gymId } });
-    if (!u) throw new NotFoundException('Usuario no pertenece al gimnasio');
-    return u;
+    // Validar membership via gym_users
+    const gymUser = await this.gymUsersRepo.findOne({
+      where: { userId, gymId },
+    });
+    if (!gymUser) throw new NotFoundException('Usuario no pertenece al gimnasio');
+
+    // Obtener user
+    const u = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+
+    // Retornar user con role del gym_user
+    return { ...u, role: gymUser.role };
   }
 
   async checkIn(dto: CheckInDto) {
@@ -30,11 +41,12 @@ export class AttendanceService {
     }
 
     // Evitar duplicados abiertos para el mismo cliente
-    const open = await this.repo.findOne({ where: { clientId: dto.clientId, checkOutAt: IsNull() } });
+    const open = await this.repo.findOne({ where: { clientGymUserId: dto.clientId, checkOutAt: IsNull() } });
     if (open) throw new BadRequestException('El cliente ya tiene una asistencia abierta');
 
     const row = this.repo.create({
-      clientId: dto.clientId,
+      gymId: dto.gymId,
+      clientGymUserId: dto.clientId,
       checkInAt: new Date(),
       checkOutAt: null,
     });
@@ -47,7 +59,7 @@ export class AttendanceService {
     if (!row) throw new NotFoundException('Asistencia no encontrada');
     if (row.checkOutAt) return row;
 
-    if (by.role === RoleEnum.CLIENT && by.id !== row.clientId) {
+    if (by.role === RoleEnum.CLIENT && by.id !== row.clientGymUserId) {
       throw new ForbiddenException('CLIENT solo puede hacer check-out de su propia asistencia');
     }
 
@@ -56,10 +68,9 @@ export class AttendanceService {
   }
 
   async list(q: QueryAttendanceDto) {
-    // Note: attendance table doesn't have gym_id, would need JOIN with clients/users to filter by gym
-    // For now, simplified to just filter by clientId and date range
+    // Note: attendance now has gym_id
     const where: any = {};
-    if (q.clientId) where.clientId = q.clientId;
+    if (q.clientId) where.clientGymUserId = q.clientId;
     if (q.openOnly === 'true') where.checkOutAt = IsNull();
     if (q.from && q.to) where.checkInAt = Between(new Date(q.from), new Date(q.to));
 

@@ -3,11 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { GymHour } from './entities/gym-hour.entity';
 import { GymHourOverride } from './entities/gym-hour-override.entity';
 import { User } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { GymHoursService } from './gym-hours.service';
 import { GymHoursController } from './gym-hours.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([GymHour, GymHourOverride, User])],
+  imports: [TypeOrmModule.forFeature([GymHour, GymHourOverride, User, GymUser])],
   providers: [GymHoursService],
   controllers: [GymHoursController],
   exports: [TypeOrmModule, GymHoursService],

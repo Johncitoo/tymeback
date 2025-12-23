@@ -15,9 +15,11 @@ export enum FilePurposeEnum {
   EXERCISE_IMAGE = 'EXERCISE_IMAGE',
   MACHINE_IMAGE = 'MACHINE_IMAGE',
   PROOF = 'PROOF', // comprobante pago
+  PAYMENT_RECEIPT = 'PAYMENT_RECEIPT', // comprobante de pago
   INBODY_PDF = 'INBODY_PDF',
   PROGRESS_PHOTO = 'PROGRESS_PHOTO',
   CERTIFICATE = 'CERTIFICATE', // títulos entrenador
+  DOCUMENT = 'DOCUMENT', // documentos generales
   OTHER = 'OTHER',
 }
 
@@ -29,7 +31,7 @@ export enum FileStatusEnum {
 
 @Entity({ name: 'files' })
 @Index(['gymId', 'purpose'])
-@Index(['gymId', 'ownerUserId'])
+@Index(['gymId', 'uploadedByUserId'])
 export class AppFile {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -37,12 +39,12 @@ export class AppFile {
   @Column('uuid', { name: 'gym_id' })
   gymId!: string;
 
-  @Column('uuid', { name: 'owner_user_id', nullable: true })
-  ownerUserId!: string | null;
+  @Column('uuid', { name: 'uploaded_by_user_id', nullable: true })
+  uploadedByUserId!: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn({ name: 'owner_user_id' })
-  ownerUser!: User | null;
+  @JoinColumn({ name: 'uploaded_by_user_id' })
+  uploadedByUser!: User | null;
 
   @Column('text', { name: 'original_name' })
   originalName!: string;

@@ -26,9 +26,6 @@ export class EmailLog {
   @Column('uuid', { name: 'template_id', nullable: true })
   templateId!: string | null;
 
-  @Column('uuid', { name: 'campaign_id', nullable: true })
-  campaignId!: string | null;
-
   @Column({ type: 'enum', enum: EmailLogStatusEnum, enumName: 'email_log_status_enum' })
   status!: EmailLogStatusEnum;
 

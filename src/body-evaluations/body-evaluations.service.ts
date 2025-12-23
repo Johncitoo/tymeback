@@ -11,6 +11,7 @@ import { CreateBodyEvaluationDto } from './dto/create-body-evaluation.dto';
 import { UpdateBodyEvaluationDto } from './dto/update-body-evaluation.dto';
 import { QueryBodyEvaluationsDto } from './dto/query-body-evaluations.dto';
 import { User, RoleEnum } from '../users/entities/user.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 
 @Injectable()
 export class BodyEvaluationsService {
@@ -19,12 +20,18 @@ export class BodyEvaluationsService {
     private readonly repo: Repository<BodyEvaluation>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    @InjectRepository(GymUser)
+    private readonly gymUsersRepo: Repository<GymUser>,
   ) {}
 
   private async assertGymUser(userId: string, gymId: string): Promise<User> {
-    const u = await this.usersRepo.findOne({ where: { id: userId, gymId } });
-    if (!u) throw new NotFoundException('Usuario no pertenece al gimnasio');
-    return u;
+    const gymUser = await this.gymUsersRepo.findOne({ where: { userId, gymId } });
+    if (!gymUser) throw new NotFoundException('Usuario no pertenece al gimnasio');
+    
+    const u = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+    
+    return { ...u, role: gymUser.role };
   }
 
   private async assertClient(clientId: string, gymId: string): Promise<User> {

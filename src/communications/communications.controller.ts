@@ -2,6 +2,7 @@ import { Controller, Post, Patch, Get, Body, Param, Query, UseGuards } from '@ne
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CommunicationsService } from './communications.service';
+import { AutomatedEmailsService } from './automated-emails.service';
 import { CreateTemplateDto } from './dto/create-template.dto';
 import { UpdateTemplateDto } from './dto/update-template.dto';
 import { QueryTemplatesDto } from './dto/query-templates.dto';
@@ -10,6 +11,8 @@ import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { ScheduleCampaignDto } from './dto/schedule-campaign.dto';
 import { QueryCampaignsDto } from './dto/query-campaigns.dto';
+import { UpdateAutomatedEmailDto, SendMassEmailDto } from './dto/automated-emails.dto';
+import { AutomatedEmailType } from './entities/automated-email-template.entity';
 import { MailerService } from './mailer/mailer.service';
 
 @Controller('communications')
@@ -17,29 +20,71 @@ import { MailerService } from './mailer/mailer.service';
 export class CommunicationsController {
   constructor(
     private readonly service: CommunicationsService,
+    private readonly automatedService: AutomatedEmailsService,
     private readonly mailer: MailerService,
   ) {}
+
+  // ========== CORREOS AUTOMÁTICOS ==========
+
+  @Get('automated-templates')
+  getAutomatedTemplates(@CurrentUser() user: any) {
+    return this.automatedService.getAutomatedTemplates(user.gymId);
+  }
+
+  @Get('automated-templates/:type')
+  getAutomatedTemplate(@CurrentUser() user: any, @Param('type') type: string) {
+    return this.automatedService.getAutomatedTemplate(user.gymId, type as AutomatedEmailType);
+  }
+
+  @Patch('automated-templates/:type')
+  updateAutomatedTemplate(
+    @CurrentUser() user: any,
+    @Param('type') type: string,
+    @Body() dto: UpdateAutomatedEmailDto,
+  ) {
+    return this.automatedService.updateAutomatedTemplate(user.gymId, type as AutomatedEmailType, dto);
+  }
+
+  // ========== ENVÍO MASIVO ==========
+
+  @Post('support-request')
+  async sendSupportRequest(@Body() dto: any, @CurrentUser() user?: any) {
+    const gymId = dto.gymId || user?.gymId;
+    const clientData = dto.clientId ? await this.service.getClientInfo(dto.clientId, gymId) : null;
+    return this.service.sendSupportRequest(gymId, dto.reason, dto.message, clientData, dto.email, dto.gymSlug);
+  }
+
+  @Post('mass-email/preview')
+  async previewMassEmail(@CurrentUser() user: any, @Body() dto: SendMassEmailDto) {
+    const recipients = await this.automatedService.getRecipients(user.gymId, dto);
+    return { count: recipients.length, recipients: recipients.map(r => ({ id: r.id, email: r.email, firstName: r.firstName, lastName: r.lastName })) };
+  }
+
+  @Post('mass-email')
+  sendMassEmail(@CurrentUser() user: any, @Body() dto: SendMassEmailDto) {
+    return this.automatedService.sendMassEmail(user.gymId, user.sub, dto);
+  }
+
+  @Get('mass-email/history')
+  getMassEmailHistory(@CurrentUser() user: any) {
+    return this.automatedService.getMassEmailHistory(user.gymId);
+  }
+
+  // ========== LEGACY (mantener compatibilidad) ==========
 
   // Health check para servicio de email
   @Get('health')
   async healthCheck() {
     try {
-      const result = await this.mailer.sendTest(process.env.EMAIL_USER || 'test@example.com');
-      
+      // Ya no mostrar el mensaje poco profesional
       return {
         status: 'ok',
-        service: 'Gmail SMTP',
         configured: true,
-        message: 'Email service is working',
-        dryRun: process.env.EMAIL_DRY_RUN === 'true',
       };
     } catch (error) {
       return {
         status: 'error',
-        service: 'Gmail SMTP',
         configured: false,
-        message: error.message,
-        hint: 'Verifica que EMAIL_USER y EMAIL_PASSWORD estén configurados correctamente',
       };
     }
   }

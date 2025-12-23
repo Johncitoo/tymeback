@@ -3,13 +3,21 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Membership } from './entities/membership.entity';
 import { Plan } from '../plans/entities/plan.entity';
 import { User } from '../users/entities/user.entity';
+import { Payment } from '../payments/entities/payment.entity';
+import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { MembershipsService } from './memberships.service';
-// import { MembershipsController } from './memberships.controller'; // DESHABILITADO
+import { MembershipsController } from './memberships.controller';
+import { MembershipRemindersService } from './membership-reminders.service';
+import { MembershipStatusService } from './membership-status.service';
+import { CommunicationsModule } from '../communications/communications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Membership, Plan, User])],
-  providers: [MembershipsService],
-  controllers: [], // MembershipsController - COMENTADO hasta arreglar gymId issues
-  exports: [TypeOrmModule, MembershipsService],
+  imports: [
+    TypeOrmModule.forFeature([Membership, Plan, User, Payment, GymUser]),
+    CommunicationsModule,
+  ],
+  providers: [MembershipsService, MembershipRemindersService, MembershipStatusService],
+  controllers: [MembershipsController],
+  exports: [TypeOrmModule, MembershipsService, MembershipStatusService],
 })
 export class MembershipsModule {}
