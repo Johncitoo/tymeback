@@ -17,6 +17,7 @@ import { User } from '../users/entities/user.entity';
 import { GymUser } from '../gym-users/entities/gym-user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Plan } from '../plans/entities/plan.entity';
+import { Gym } from '../gyms/entities/gym.entity';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { Plan } from '../plans/entities/plan.entity';
       GymUser,
       Membership,
       Plan,
+      Gym,
     ]),
     ConfigModule,
     MailerModule,
