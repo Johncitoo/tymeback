@@ -1309,4 +1309,60 @@ export class CommunicationsService {
     }
     return log;
   }
+
+  async getClientInfo(clientId: string, gymId: string) {
+    const user = await this.usersRepo.findOne({ where: { id: clientId } });
+    if (!user) return null;
+    const gymUser = await this.gymUsersRepo.findOne({ where: { userId: clientId, gymId } });
+    return { ...user, gymUser };
+  }
+
+  async sendSupportRequest(gymId: string, reason: string, message: string, clientData: any, email?: string, gymSlug?: string) {
+    let gym: Gym;
+    if (gymId) {
+      gym = await this.gymsRepo.findOne({ where: { id: gymId } });
+    } else if (gymSlug) {
+      gym = await this.gymsRepo.findOne({ where: { slug: gymSlug, isActive: true } });
+      if (!gym) throw new NotFoundException('Gimnasio no encontrado');
+    } else {
+      throw new Error('gymId o gymSlug requerido');
+    }
+
+    const admins = await this.gymUsersRepo.find({ 
+      where: { gymId: gym.id, role: RoleEnum.ADMIN, isActive: true },
+      relations: ['user']
+    });
+
+    const reasonTexts = {
+      billing: 'Problema con facturación/pagos',
+      membership: 'Consulta sobre membresía',
+      schedule: 'Horarios y disponibilidad',
+      trainer: 'Consulta sobre entrenador',
+      equipment: 'Problema con equipamiento',
+      bug: 'Error en el sistema',
+      other: 'Otro'
+    };
+
+    const subject = `Solicitud de Ayuda: ${reasonTexts[reason] || reason}`;
+    const html = `
+      <h2>Nueva Solicitud de Ayuda</h2>
+      <p><strong>Gimnasio:</strong> ${gym.name}</p>
+      ${clientData ? `
+        <p><strong>Cliente:</strong> ${clientData.fullName || clientData.email}</p>
+        <p><strong>Email:</strong> ${clientData.email}</p>
+        <p><strong>Teléfono:</strong> ${clientData.phone || 'No disponible'}</p>
+      ` : `<p><strong>Email de contacto:</strong> ${email}</p>`}
+      <p><strong>Motivo:</strong> ${reasonTexts[reason] || reason}</p>
+      <p><strong>Mensaje:</strong></p>
+      <p>${message}</p>
+    `;
+
+    for (const admin of admins) {
+      if (admin.user?.email) {
+        await this.mailer.send(admin.user.email, subject, html);
+      }
+    }
+
+    return { success: true };
+  }
 }

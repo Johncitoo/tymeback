@@ -47,6 +47,13 @@ export class CommunicationsController {
 
   // ========== ENVÍO MASIVO ==========
 
+  @Post('support-request')
+  async sendSupportRequest(@Body() dto: any, @CurrentUser() user?: any) {
+    const gymId = dto.gymId || user?.gymId;
+    const clientData = dto.clientId ? await this.service.getClientInfo(dto.clientId, gymId) : null;
+    return this.service.sendSupportRequest(gymId, dto.reason, dto.message, clientData, dto.email, dto.gymSlug);
+  }
+
   @Post('mass-email/preview')
   async previewMassEmail(@CurrentUser() user: any, @Body() dto: SendMassEmailDto) {
     const recipients = await this.automatedService.getRecipients(user.gymId, dto);

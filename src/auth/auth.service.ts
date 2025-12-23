@@ -203,6 +203,16 @@ export class AuthService {
         [userId, gymId]
       );
 
+      // Obtener membresía activa
+      const membershipData = await this.dataSource.query(
+        `SELECT m.*, p.name as plan_name, p.id as plan_id
+         FROM v_active_memberships m
+         LEFT JOIN plans p ON m.plan_id = p.id
+         WHERE m.client_gym_user_id = $1 AND m.gym_id = $2
+         LIMIT 1`,
+        [gymUser.id, gymId]
+      );
+
       if (!clientData || clientData.length === 0) {
         // Si no hay registro en clients, devolver datos básicos
         return {
@@ -221,6 +231,7 @@ export class AuthService {
       }
 
       const client = clientData[0];
+      const membership = membershipData && membershipData.length > 0 ? membershipData[0] : null;
 
       // Construir objeto completo del cliente
       return {
@@ -247,12 +258,12 @@ export class AuthService {
         } : undefined,
         trainerId: client.trainer_id,
         privateSessions: client.private_sessions || 0,
-        membershipExpiry: client.membership_expiry,
-        plan: client.plan_id ? {
-          id: client.plan_id,
-          name: client.plan_name,
-        } : undefined,
-        planId: client.plan_id,
+        membershipExpiry: membership ? membership.ends_on : null,
+        plan: membership ? {
+          id: membership.plan_id,
+          name: membership.plan_name,
+        } : null,
+        planId: membership ? membership.plan_id : null,
       };
     } catch (error) {
       console.error('Error obteniendo datos completos del cliente:', error);
