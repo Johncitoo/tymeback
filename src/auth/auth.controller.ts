@@ -172,4 +172,24 @@ export class AuthController {
     );
     return { message: 'Correo de recordatorio de vencimiento enviado' };
   }
+
+  @Post('test/send-membership-expired')
+  async testSendMembershipExpired(@Body() dto: {
+    gymId: string;
+    userId: string;
+    toEmail: string;
+    userName: string;
+    planName: string;
+    expiryDate: string;
+  }) {
+    await this.communications.sendMembershipExpiredEmail(
+      dto.gymId,
+      dto.userId,
+      dto.toEmail,
+      dto.userName,
+      dto.planName,
+      dto.expiryDate,
+    );
+    return { message: 'Correo de membresía expirada enviado' };
+  }
 }

@@ -114,12 +114,15 @@ async function sendTestEmails() {
     
     console.log(paymentResponse.ok ? '   ✅ Correo de pago enviado' : '   ⚠️ No se pudo enviar (endpoint no disponible)');
 
-    // 4. Correo de Recordatorio de Vencimiento
-    console.log('\n4️⃣ Enviando correo de recordatorio de vencimiento...');
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + 3);
+    // 4. Recordatorios de Vencimiento (7, 3 y 1 día)
+    console.log('\n4️⃣ Enviando recordatorios de vencimiento...');
     
-    const reminderResponse = await fetch(`${backendUrl}/auth/test/send-expiration-reminder`, {
+    // 4a. Recordatorio de 7 días
+    console.log('   📅 Recordatorio 7 días antes...');
+    const expiryDate7 = new Date();
+    expiryDate7.setDate(expiryDate7.getDate() + 7);
+    
+    const reminder7Response = await fetch(`${backendUrl}/auth/test/send-expiration-reminder`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -128,16 +131,86 @@ async function sendTestEmails() {
         toEmail: testEmail,
         userName: `${testUser.first_name} ${testUser.last_name}`,
         planName: 'Plan Mensual Premium',
-        expiryDate: expiryDate.toISOString().slice(0, 10),
+        expiryDate: expiryDate7.toISOString().slice(0, 10),
+        daysUntilExpiry: 7
+      })
+    }).catch(() => ({ ok: false }));
+    
+    console.log(reminder7Response.ok ? '      ✅ Recordatorio 7 días enviado' : '      ⚠️ No se pudo enviar');
+
+    // 4b. Recordatorio de 3 días
+    console.log('   📅 Recordatorio 3 días antes...');
+    const expiryDate3 = new Date();
+    expiryDate3.setDate(expiryDate3.getDate() + 3);
+    
+    const reminder3Response = await fetch(`${backendUrl}/auth/test/send-expiration-reminder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gymId: gym.id,
+        userId: testUser.id,
+        toEmail: testEmail,
+        userName: `${testUser.first_name} ${testUser.last_name}`,
+        planName: 'Plan Mensual Premium',
+        expiryDate: expiryDate3.toISOString().slice(0, 10),
         daysUntilExpiry: 3
       })
     }).catch(() => ({ ok: false }));
     
-    console.log(reminderResponse.ok ? '   ✅ Correo de recordatorio enviado' : '   ⚠️ No se pudo enviar (endpoint no disponible)');
+    console.log(reminder3Response.ok ? '      ✅ Recordatorio 3 días enviado' : '      ⚠️ No se pudo enviar');
+
+    // 4c. Recordatorio de 1 día (URGENTE)
+    console.log('   📅 Recordatorio 1 día antes (URGENTE)...');
+    const expiryDate1 = new Date();
+    expiryDate1.setDate(expiryDate1.getDate() + 1);
+    
+    const reminder1Response = await fetch(`${backendUrl}/auth/test/send-expiration-reminder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gymId: gym.id,
+        userId: testUser.id,
+        toEmail: testEmail,
+        userName: `${testUser.first_name} ${testUser.last_name}`,
+        planName: 'Plan Mensual Premium',
+        expiryDate: expiryDate1.toISOString().slice(0, 10),
+        daysUntilExpiry: 1
+      })
+    }).catch(() => ({ ok: false }));
+    
+    console.log(reminder1Response.ok ? '      ✅ Recordatorio 1 día enviado (URGENTE)' : '      ⚠️ No se pudo enviar');
+
+    // 5. Membresía Expirada (ya pasó la fecha)
+    console.log('\n5️⃣ Enviando correo de membresía expirada...');
+    const expiredDate = new Date();
+    expiredDate.setDate(expiredDate.getDate() - 5); // Expiró hace 5 días
+    
+    const expiredResponse = await fetch(`${backendUrl}/auth/test/send-membership-expired`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gymId: gym.id,
+        userId: testUser.id,
+        toEmail: testEmail,
+        userName: `${testUser.first_name} ${testUser.last_name}`,
+        planName: 'Plan Mensual Premium',
+        expiryDate: expiredDate.toISOString().slice(0, 10)
+      })
+    }).catch(() => ({ ok: false }));
+    
+    console.log(expiredResponse.ok ? '   ✅ Correo de membresía expirada enviado' : '   ⚠️ No se pudo enviar');
 
     console.log('\n✅ Proceso completado');
     console.log(`\n📬 Revisa tu bandeja de entrada: ${testEmail}`);
     console.log('💡 Si no ves los correos, revisa la carpeta de spam/correo no deseado');
+    console.log('\n📊 Resumen de correos enviados:');
+    console.log('   1. Bienvenida/Activación (72h de validez)');
+    console.log('   2. Recuperación de Contraseña (1h de validez)');
+    console.log('   3. Confirmación de Pago');
+    console.log('   4. Recordatorio 7 días antes del vencimiento');
+    console.log('   5. Recordatorio 3 días antes del vencimiento');
+    console.log('   6. Recordatorio 1 día antes del vencimiento (URGENTE)');
+    console.log('   7. Membresía Expirada (pasó la fecha)');
 
   } catch (error) {
     console.error('❌ Error:', error.message);

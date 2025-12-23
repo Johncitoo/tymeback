@@ -1018,6 +1018,214 @@ export class CommunicationsService {
     });
   }
 
+  // ---------- Email de Membresía Expirada ----------
+  async sendMembershipExpiredEmail(
+    gymId: string,
+    userId: string,
+    userEmail: string,
+    userName: string,
+    planName: string,
+    expiryDate: string,
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Membresía Expirada - Renueva Ahora</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            margin: 0;
+            padding: 40px 20px;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+          }
+          .header {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+          }
+          .icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+          }
+          .content {
+            padding: 40px 30px;
+          }
+          .alert-box {
+            background: #fee2e2;
+            border-left: 4px solid #dc2626;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 24px 0;
+          }
+          .alert-box p {
+            margin: 0;
+            color: #991b1b;
+            font-weight: 600;
+            font-size: 16px;
+          }
+          .details-box {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 24px 0;
+          }
+          .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #e5e7eb;
+          }
+          .detail-row:last-child {
+            border-bottom: none;
+          }
+          .detail-label {
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 14px;
+            text-transform: uppercase;
+          }
+          .detail-value {
+            font-weight: 700;
+            color: #1f2937;
+            font-size: 16px;
+          }
+          .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            padding: 16px 40px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 18px;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+            text-align: center;
+          }
+          .footer {
+            background: #f9fafb;
+            padding: 30px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="icon">🚫</div>
+            <h1>Tu Membresía ha Expirado</h1>
+          </div>
+          <div class="content">
+            <p style="font-size: 18px; color: #1f2937; margin-bottom: 24px;">
+              Hola <strong>${userName}</strong>,
+            </p>
+            
+            <div class="alert-box">
+              <p>
+                ⚠️ Tu membresía expiró el <strong>${expiryDate}</strong>.<br/>
+                Para continuar usando nuestras instalaciones, es necesario que renueves tu plan.
+              </p>
+            </div>
+
+            <div class="details-box">
+              <div class="detail-row">
+                <span class="detail-label">Plan Anterior</span>
+                <span class="detail-value">${planName}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Fecha de Vencimiento</span>
+                <span class="detail-value" style="color: #dc2626;">${expiryDate}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Estado</span>
+                <span class="detail-value" style="color: #dc2626;">❌ EXPIRADA</span>
+              </div>
+            </div>
+
+            <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 24px 0;">
+              No queremos que dejes de entrenar. Acércate a nuestro gimnasio para renovar tu membresía 
+              y continuar con tus objetivos de salud y bienestar.
+            </p>
+
+            <div style="text-align: center; margin: 32px 0;">
+              <div class="cta-button">
+                💪 Renovar Membresía
+              </div>
+            </div>
+
+            <p style="font-size: 14px; color: #6b7280; margin-top: 32px;">
+              Si ya realizaste tu renovación, por favor ignora este mensaje. Tu acceso será habilitado una vez 
+              procesemos tu pago.
+            </p>
+          </div>
+          <div class="footer">
+            <p><strong>TYME Gym</strong></p>
+            <p>¡Te extrañamos! Vuelve pronto 💙</p>
+            <p style="margin-top: 16px; font-size: 12px;">
+              Para más información, visita nuestro gimnasio o contáctanos.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    try {
+      const messageId = await this.mailer.send(
+        userEmail,
+        `🚫 Tu Membresía ha Expirado - ${planName}`,
+        html
+      );
+      
+      try {
+        await this.logRepo.save(this.logRepo.create({
+          gymId,
+          toEmail: userEmail,
+          subject: `Membresía expirada - ${planName}`,
+          templateId: null,
+          status: EmailLogStatusEnum.SENT,
+          providerMessageId: messageId,
+          error: null,
+        }));
+      } catch (logError) {
+        console.log('Error guardando log de correo expirado:', logError);
+      }
+    } catch (e: any) {
+      try {
+        await this.logRepo.save(this.logRepo.create({
+          gymId,
+          toEmail: userEmail,
+          subject: `Membresía expirada - ${planName}`,
+          templateId: null,
+          status: EmailLogStatusEnum.FAILED,
+          providerMessageId: null,
+          error: e?.message ?? String(e),
+        }));
+      } catch (logError) {
+        console.log('Error guardando log de fallo:', logError);
+      }
+      throw e;
+    }
+  }
+
   // ---------- Email Logs ----------
   async getEmailLogs(
     gymId: number,
