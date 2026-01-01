@@ -60,6 +60,28 @@ export class UsersService {
         });
         await this.gymUsersRepo.save(newGymUser);
         console.log('✅ Membership creado para usuario existente:', existing.id);
+
+        // Crear registro específico según el rol
+        if (dto.role === RoleEnum.CLIENT) {
+          await this.repo.query(
+            `INSERT INTO clients (gym_user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+            [newGymUser.id]
+          );
+          console.log('✅ Client record created for existing user');
+        } else if (dto.role === RoleEnum.TRAINER) {
+          await this.repo.query(
+            `INSERT INTO trainers (gym_user_id, specialties) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [newGymUser.id, dto.specialties || []]
+          );
+          console.log('✅ Trainer record created for existing user');
+        } else if (dto.role === RoleEnum.NUTRITIONIST) {
+          await this.repo.query(
+            `INSERT INTO nutritionists (gym_user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+            [newGymUser.id]
+          );
+          console.log('✅ Nutritionist record created for existing user');
+        }
+
         return existing;
       }
     }
@@ -109,6 +131,27 @@ export class UsersService {
       });
       await this.gymUsersRepo.save(gymUser);
       console.log('🟣 Gym user membership created:', gymUser.id);
+
+      // Crear registro específico según el rol
+      if (dto.role === RoleEnum.CLIENT) {
+        await this.repo.query(
+          `INSERT INTO clients (gym_user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+          [gymUser.id]
+        );
+        console.log('🟣 Client record created');
+      } else if (dto.role === RoleEnum.TRAINER) {
+        await this.repo.query(
+          `INSERT INTO trainers (gym_user_id, specialties) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [gymUser.id, dto.specialties || []]
+        );
+        console.log('🟣 Trainer record created');
+      } else if (dto.role === RoleEnum.NUTRITIONIST) {
+        await this.repo.query(
+          `INSERT INTO nutritionists (gym_user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+          [gymUser.id]
+        );
+        console.log('🟣 Nutritionist record created');
+      }
 
       // Si es CLIENT y tiene email, enviar email de activación
       if (dto.role === RoleEnum.CLIENT && saved.email) {

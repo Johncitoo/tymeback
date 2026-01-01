@@ -8,6 +8,7 @@ import {
   IsBoolean,
   IsDateString,
   Matches,
+  IsArray,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { GenderEnum, RoleEnum, SexEnum } from '../entities/user.entity';
@@ -67,6 +68,11 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   avatarUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  specialties?: string[];
 
   @IsOptional()
   @IsBoolean()
