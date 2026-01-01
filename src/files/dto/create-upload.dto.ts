@@ -3,10 +3,10 @@ import { Type } from 'class-transformer';
 import { FilePurposeEnum } from '../entities/file.entity';
 
 export class CreateUploadDto {
-  @IsUUID()
+  @IsUUID('all')
   gymId!: string;
 
-  @IsUUID()
+  @IsUUID('all')
   @IsOptional()
   ownerUserId?: string;
 

@@ -3,11 +3,11 @@ import { Type } from 'class-transformer';
 import { FilePurposeEnum } from '../entities/file.entity';
 
 export class PresignUploadDto {
-  @IsUUID()
+  @IsUUID('all')
   gymId!: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   ownerUserId?: string; // p.ej. cliente, entrenador
 
   @IsString()

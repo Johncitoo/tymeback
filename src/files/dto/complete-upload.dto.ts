@@ -1,10 +1,10 @@
 import { IsBoolean, IsOptional, IsUUID } from 'class-validator';
 
 export class CompleteUploadDto {
-  @IsUUID()
+  @IsUUID('all')
   gymId!: string;
 
-  @IsUUID()
+  @IsUUID('all')
   fileId!: string;
 
   @IsOptional()

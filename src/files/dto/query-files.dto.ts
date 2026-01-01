@@ -3,10 +3,10 @@ import { Type } from 'class-transformer';
 import { FilePurposeEnum, FileStatusEnum } from '../entities/file.entity';
 
 export class QueryFilesDto {
-  @IsUUID()
+  @IsUUID('all')
   gymId!: string;
 
-  @IsUUID()
+  @IsUUID('all')
   @IsOptional()
   ownerUserId?: string;
 

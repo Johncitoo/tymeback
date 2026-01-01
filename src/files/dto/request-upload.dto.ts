@@ -10,11 +10,11 @@ import {
 import { FilePurposeEnum } from '../entities/file.entity';
 
 export class RequestUploadDto {
-  @IsUUID()
+  @IsUUID('all')
   gymId!: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   ownerUserId?: string;
 
   @IsEnum(FilePurposeEnum)

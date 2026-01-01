@@ -1,9 +1,9 @@
 import { IsUUID } from 'class-validator';
 
 export class ConfirmUploadDto {
-  @IsUUID()
+  @IsUUID('all')
   gymId!: string;
 
-  @IsUUID()
+  @IsUUID('all')
   fileId!: string;
 }
