@@ -2,9 +2,9 @@ import { IsUUID, IsOptional, Matches, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class QueryMembershipsDto {
-  @IsUUID() gymId!: string;
+  @IsUUID('all') gymId!: string;
 
-  @IsOptional() @IsUUID() clientId?: string;
+  @IsOptional() @IsUUID('all') clientId?: string;
 
   /** YYYY-MM-DD filtros opcionales por vigencia */
   @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) activeAt?: string;
