@@ -44,14 +44,14 @@ export class UsersService {
     if (dto.email) {
       const existing = await this.repo.findOne({ where: { email: dto.email } });
       if (existing) {
-        // Usuario existe, verificar si ya tiene membership en este gym
+        // Usuario existe, verificar si ya tiene este rol específico en este gym
         const gymUser = await this.gymUsersRepo.findOne({
-          where: { userId: existing.id, gymId },
+          where: { userId: existing.id, gymId, role: dto.role },
         });
         if (gymUser) {
-          throw new ConflictException('Este usuario ya existe en este gimnasio');
+          throw new ConflictException(`Este usuario ya tiene el rol ${dto.role} en este gimnasio`);
         }
-        // Usuario existe pero no en este gym → crear solo gym_user
+        // Usuario existe pero no tiene este rol → crear gym_user con nuevo rol
         const newGymUser = this.gymUsersRepo.create({
           gymId,
           userId: existing.id,
