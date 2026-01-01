@@ -51,6 +51,43 @@ export class UsersService {
         if (gymUser) {
           throw new ConflictException(`Este usuario ya tiene el rol ${dto.role} en este gimnasio`);
         }
+        
+        // Usuario existe pero no tiene este rol → actualizar datos y agregar rol
+        // Smart Merge: actualizar solo campos que vienen y (están NULL O son diferentes)
+        const updates: any = {};
+        
+        // Nombre siempre se puede actualizar (mejora continua)
+        if (dto.firstName && dto.firstName !== existing.firstName) updates.firstName = dto.firstName;
+        if (dto.lastName && dto.lastName !== existing.lastName) updates.lastName = dto.lastName;
+        
+        // Datos personales: actualizar solo si están vacíos o son diferentes
+        if (dto.phone && (!existing.phone || existing.phone !== dto.phone)) {
+          updates.phone = dto.phone;
+        }
+        if (dto.rut && (!existing.rut || existing.rut !== dto.rut)) {
+          updates.rut = dto.rut;
+        }
+        if (dto.birthDate && (!existing.birthDate || new Date(existing.birthDate).toISOString() !== new Date(dto.birthDate).toISOString())) {
+          updates.birthDate = new Date(dto.birthDate);
+        }
+        if (dto.gender && (!existing.gender || existing.gender !== dto.gender)) {
+          updates.gender = dto.gender;
+        }
+        if (dto.address && (!existing.address || existing.address !== dto.address)) {
+          updates.address = dto.address;
+        }
+        
+        // Avatar: actualizar solo si viene nuevo
+        if (dto.avatarUrl && dto.avatarUrl !== existing.avatarUrl) {
+          updates.avatarUrl = dto.avatarUrl;
+        }
+        
+        // Aplicar cambios si hay
+        if (Object.keys(updates).length > 0) {
+          await this.repo.update(existing.id, updates);
+          console.log('✅ Usuario actualizado con:', Object.keys(updates));
+        }
+        
         // Usuario existe pero no tiene este rol → crear gym_user con nuevo rol
         const newGymUser = this.gymUsersRepo.create({
           gymId,
