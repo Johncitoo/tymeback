@@ -4,9 +4,7 @@ import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, Min, Matches } fro
 
 export class QueryClientsDto {
   @IsOptional()
-  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
-    message: 'gymId must be a valid UUID'
-  })
+  @IsUUID('all')
   gymId?: string;
 
   @IsOptional()
@@ -14,9 +12,7 @@ export class QueryClientsDto {
   q?: string;
 
   @IsOptional()
-  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
-    message: 'trainerId must be a valid UUID'
-  })
+  @IsUUID('all')
   trainerId?: string;
 
   @IsOptional()
