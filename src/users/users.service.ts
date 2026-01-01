@@ -211,9 +211,16 @@ export class UsersService {
           ) as "avatarFileId",
           u.platform_role as "platformRole", u.is_active as "isActive",
           u.created_at as "createdAt", u.updated_at as "updatedAt",
+          gu.role as "role",
+          t.specialties as "specialties",
+          t.certifications as "certifications",
+          n.specialties as "nutritionistSpecialties",
+          n.certifications as "nutritionistCertifications",
           COUNT(*) OVER() as total
         FROM users u
         INNER JOIN gym_users gu ON gu.user_id = u.id
+        LEFT JOIN trainers t ON t.gym_user_id = gu.id
+        LEFT JOIN nutritionists n ON n.gym_user_id = gu.id
         WHERE gu.gym_id = $1
       `;
       
