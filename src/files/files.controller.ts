@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseInterceptors, UploadedFile, BadRequestException, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseInterceptors, UploadedFile, BadRequestException, UseGuards, ForbiddenException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FilesService } from './files.service';
 import { CreateUploadDto } from './dto/create-upload.dto';
@@ -127,5 +127,21 @@ export class FilesController {
       throw new ForbiddenException('No tienes permiso para acceder a este archivo');
     }
     return this.files.getDownloadUrl(id);
+  }
+
+  // 8) Actualizar owner de un archivo
+  @Patch(':id/owner')
+  @UseGuards(JwtAuthGuard)
+  async updateOwner(
+    @Param('id') id: string,
+    @Body('ownerUserId') ownerUserId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    // Validar que el usuario pertenezca al mismo gym del archivo
+    const file = await this.files.findOne(id);
+    if (file.gymId !== user.gymId) {
+      throw new ForbiddenException('No tienes permiso para modificar este archivo');
+    }
+    return this.files.updateOwner(id, ownerUserId);
   }
 }

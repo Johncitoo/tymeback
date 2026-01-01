@@ -173,6 +173,15 @@ export class FilesService {
     return { ok: true };
   }
 
+  // 5.5) Actualizar owner del archivo
+  async updateOwner(id: string, ownerUserId: string) {
+    const row = await this.repo.findOne({ where: { id } });
+    if (!row) throw new NotFoundException('Archivo no encontrado');
+    row.ownerUserId = ownerUserId;
+    await this.repo.save(row);
+    return { ok: true, file: row };
+  }
+
   // 6) URL de descarga firmada (GET) por 10 minutos
   async getDownloadUrl(id: string) {
     const row = await this.repo.findOne({ where: { id } });
