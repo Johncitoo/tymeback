@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, UseGuards, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -26,6 +26,15 @@ export class AuthController {
     
     if (role === 'CLIENT') {
       membershipStatus = await this.auth.getMembershipStatus(user.id, gymId);
+      
+      // ❌ RECHAZAR LOGIN SI NO TIENE MEMBRESÍA ACTIVA
+      if (membershipStatus !== 'ACTIVE') {
+        const message = membershipStatus === 'EXPIRED'
+          ? 'Tu membresía ha vencido. Por favor, renueva tu plan para acceder al sistema.'
+          : 'No tienes una membresía activa. Debes registrar tu primer pago para acceder al sistema.';
+        throw new UnauthorizedException(message);
+      }
+      
       fullUserData = await this.auth.getClientFullData(user.id, gymId);
     }
     
