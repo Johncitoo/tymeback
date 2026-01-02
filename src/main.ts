@@ -55,6 +55,11 @@ async function bootstrap() {
         return callback(null, true);
       }
       
+      // Permitir todos los dominios de Vercel
+      if (origin.includes('.vercel.app')) {
+        return callback(null, true);
+      }
+      
       // Permitir dominios personalizados
       if (customDomains.includes(origin)) {
         return callback(null, true);
@@ -64,7 +69,7 @@ async function bootstrap() {
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        console.warn('⚠️  CORS bloqueado para:',);
+        console.warn('⚠️  CORS bloqueado para:', origin);
         callback(new Error('Not allowed by CORS'));
       }
     },
