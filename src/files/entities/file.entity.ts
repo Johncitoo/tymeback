@@ -39,6 +39,9 @@ export class AppFile {
   @Column('uuid', { name: 'gym_id' })
   gymId!: string;
 
+  @Column('uuid', { name: 'owner_gym_user_id', nullable: true })
+  ownerGymUserId!: string | null;
+
   @Column('uuid', { name: 'uploaded_by_user_id', nullable: true })
   uploadedByUserId!: string | null;
 

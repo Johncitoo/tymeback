@@ -239,7 +239,7 @@ export class UsersService {
           u.gender, u.sex, u.address, u.avatar_url as "avatarUrl",
           (
             SELECT f.id FROM files f 
-            WHERE f.uploaded_by_user_id = u.id
+            WHERE f.owner_gym_user_id = gu.id
             AND f.gym_id = gu.gym_id 
             AND f.purpose = 'AVATAR'
             AND f.status = 'READY'

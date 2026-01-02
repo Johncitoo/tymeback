@@ -139,7 +139,21 @@ export class FilesService {
   // 3) Listado
   async findAll(q: QueryFilesDto) {
     const where: any = { gymId: q.gymId };
-    if (q.ownerUserId) where.uploadedByUserId = q.ownerUserId;
+    
+    // Si viene ownerUserId (user.id), buscar el gym_user_id correspondiente
+    if (q.ownerUserId) {
+      const gymUserResult = await this.repo.query(
+        `SELECT id FROM gym_users WHERE user_id = $1 AND gym_id = $2 LIMIT 1`,
+        [q.ownerUserId, q.gymId]
+      );
+      if (gymUserResult.length > 0) {
+        where.ownerGymUserId = gymUserResult[0].id;
+      } else {
+        // Si no existe el gym_user, retornar vacío
+        return { data: [], total: 0 };
+      }
+    }
+    
     if (q.purpose) where.purpose = q.purpose;
     if (q.status) where.status = q.status;
     const take = Math.min(Math.max(q.limit ?? 20, 1), 100);
@@ -174,10 +188,21 @@ export class FilesService {
   }
 
   // 5.5) Actualizar owner del archivo
-  async updateOwner(id: string, ownerUserId: string) {
+  async updateOwner(id: string, userId: string) {
     const row = await this.repo.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Archivo no encontrado');
-    row.ownerUserId = ownerUserId;
+    
+    // Buscar el gym_user_id del usuario en este gym
+    const gymUserResult = await this.repo.query(
+      `SELECT id FROM gym_users WHERE user_id = $1 AND gym_id = $2 LIMIT 1`,
+      [userId, row.gymId]
+    );
+    
+    if (gymUserResult.length === 0) {
+      throw new NotFoundException('Usuario no encontrado en este gimnasio');
+    }
+    
+    row.ownerGymUserId = gymUserResult[0].id;
     await this.repo.save(row);
     return { ok: true, file: row };
   }
@@ -217,10 +242,23 @@ export class FilesService {
 
     const key = this.buildKey(gymId, purpose, file.originalname);
 
+    // Si viene ownerUserId (user.id), buscar el gym_user_id correspondiente
+    let ownerGymUserId: string | null = null;
+    if (ownerUserId) {
+      const gymUserResult = await this.repo.query(
+        `SELECT id FROM gym_users WHERE user_id = $1 AND gym_id = $2 LIMIT 1`,
+        [ownerUserId, gymId]
+      );
+      if (gymUserResult.length > 0) {
+        ownerGymUserId = gymUserResult[0].id;
+      }
+    }
+
     // Crear registro en BD
     const row = this.repo.create({
       gymId,
       uploadedByUserId: ownerUserId ?? null,
+      ownerGymUserId,
       originalName: file.originalname,
       mimeType: file.mimetype,
       sizeBytes: String(file.size),
