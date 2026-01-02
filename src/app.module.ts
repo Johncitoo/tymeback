@@ -56,7 +56,7 @@ import { TestModule } from './test/test.module';
       database: process.env.DB_NAME || 'gym_db',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
-      migrationsRun: false, // Deshabilitado temporalmente - columna ya agregada manualmente
+      migrationsRun: true, // ✅ Habilitado para ejecutar migraciones automáticamente
       synchronize: false, // Desactivado - usamos bd.sql para el schema
       logging: process.env.DB_LOGGING === 'true',
       extra: {
