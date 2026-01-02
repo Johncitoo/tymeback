@@ -1,7 +1,7 @@
-import { IsUUID } from 'class-validator';
+import { Matches } from 'class-validator';
 
 export class AttachReceiptDto {
-  @IsUUID() gymId!: string;
-  @IsUUID() byUserId!: string;
-  @IsUUID() fileId!: string; // files.id (AppFile)
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) gymId!: string;
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) byUserId!: string;
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) fileId!: string; // files.id (AppFile)
 }

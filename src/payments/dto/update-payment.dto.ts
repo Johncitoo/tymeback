@@ -5,7 +5,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  IsUUID,
+  Matches,
   Max,
   Min,
 } from 'class-validator';
@@ -42,6 +42,6 @@ export class UpdatePaymentDto {
   note?: string;
 
   @IsOptional()
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   receiptFileId?: string;
 }

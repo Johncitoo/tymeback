@@ -1,8 +1,8 @@
 // src/payments/dto/stats-payments.dto.ts
-import { IsDateString, IsOptional, IsUUID } from 'class-validator';
+import { IsDateString, IsOptional, Matches } from 'class-validator';
 
 export class StatsPaymentsDto {
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   gymId!: string;
 
   @IsOptional()

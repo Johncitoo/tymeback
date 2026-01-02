@@ -1,11 +1,11 @@
-import { IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { Matches, IsDateString, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PaymentMethodEnum } from '../entities/payment.entity';
 
 export class RegisterPaymentDto {
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   gymId!: string;
 
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   clientId!: string;
 
   @IsEnum(PaymentMethodEnum)
@@ -17,7 +17,7 @@ export class RegisterPaymentDto {
   @Min(0)
   amountClp?: number;
 
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   planId!: string;
 
   @IsOptional()
@@ -25,7 +25,7 @@ export class RegisterPaymentDto {
   observation?: string;
 
   @IsOptional()
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   receiptFileId?: string;
 
   // Backdating hasta 7 días (solo ADMIN). Si no se permite, se ignora y se usa "now".
@@ -34,6 +34,6 @@ export class RegisterPaymentDto {
   paidAt?: string;
 
   // Para validar rol y autoría
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   byUserId!: string;
 }
