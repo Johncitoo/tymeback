@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Matches, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FilePurposeEnum, FileStatusEnum } from '../entities/file.entity';
 

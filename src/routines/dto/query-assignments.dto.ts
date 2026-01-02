@@ -1,17 +1,17 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsUUID, IsInt, Min, IsBooleanString } from 'class-validator';
+import { IsInt, IsOptional, IsString, Matches, Min, IsBooleanString } from 'class-validator';
 
 export class QueryAssignmentsDto {
   @IsOptional()
-  @IsUUID('all')
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   gymId?: string;
 
   @IsOptional()
-  @IsUUID('all')
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   routineId?: string;
 
   @IsOptional()
-  @IsUUID('all')
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   clientId?: string;
 
   @IsOptional()

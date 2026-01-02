@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, Matches, IsBoolean } from 'class-validator';
 
 export class UpdateRoutineDto {
   @IsOptional()
@@ -10,7 +10,7 @@ export class UpdateRoutineDto {
   description?: string;
 
   @IsOptional()
-  @IsUUID('all')
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   createdByUserId?: string;
 
   @IsOptional()

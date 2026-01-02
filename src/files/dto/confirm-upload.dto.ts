@@ -1,9 +1,9 @@
-import { IsUUID } from 'class-validator';
+import { Matches } from 'class-validator';
 
 export class ConfirmUploadDto {
-  @IsUUID('all')
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   gymId!: string;
 
-  @IsUUID('all')
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   fileId!: string;
 }
