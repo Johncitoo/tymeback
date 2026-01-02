@@ -140,18 +140,8 @@ export class FilesService {
   async findAll(q: QueryFilesDto) {
     const where: any = { gymId: q.gymId };
     
-    // Si viene ownerUserId (user.id), buscar el gym_user_id correspondiente
-    if (q.ownerUserId) {
-      const gymUserResult = await this.repo.query(
-        `SELECT id FROM gym_users WHERE user_id = $1 AND gym_id = $2 LIMIT 1`,
-        [q.ownerUserId, q.gymId]
-      );
-      if (gymUserResult.length > 0) {
-        where.ownerGymUserId = gymUserResult[0].id;
-      } else {
-        // Si no existe el gym_user, retornar vacío
-        return { data: [], total: 0 };
-      }
+    if (q.ownerGymUserId) {
+      where.ownerGymUserId = q.ownerGymUserId;
     }
     
     if (q.purpose) where.purpose = q.purpose;

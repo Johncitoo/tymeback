@@ -248,6 +248,7 @@ export class UsersService {
           ) as "avatarFileId",
           u.platform_role as "platformRole", u.is_active as "isActive",
           u.created_at as "createdAt", u.updated_at as "updatedAt",
+          gu.id as "gymUserId",
           gu.role as "role",
           t.specialties as "specialties",
           t.certifications as "certifications",

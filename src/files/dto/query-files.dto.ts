@@ -6,9 +6,9 @@ export class QueryFilesDto {
   @IsUUID('all')
   gymId!: string;
 
-  @IsUUID('all')
   @IsOptional()
-  ownerUserId?: string;
+  @IsUUID('all')
+  ownerGymUserId?: string;
 
   @IsOptional()
   @IsEnum(FilePurposeEnum)
